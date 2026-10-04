@@ -1,8 +1,30 @@
 use std::{collections::HashMap, path::Path};
 #[path = "../git.rs"]
 mod git;
+#[path = "../history.rs"]
+mod history;
+#[path = "../version_control.rs"]
+mod version_control;
 use git::{find_git, scan, Workspace};
 fn main() {
+    let args: Vec<_> = std::env::args().collect();
+    if args.get(1).is_some_and(|a| a == "--history") {
+        let result = (|| {
+            let repo = args
+                .get(2)
+                .ok_or("Usage: monitor-cli --history <repository-folder>")?;
+            let (git, _) = find_git().ok_or("Git is not installed.")?;
+            history::read(&git, Path::new(repo), 200, "all")
+        })();
+        match result {
+            Ok(history) => println!("{}", serde_json::to_string_pretty(&history).unwrap()),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
     let Some(path) = std::env::args().nth(1) else {
         eprintln!("Usage: monitor-cli <workspace-folder>");
         std::process::exit(2);

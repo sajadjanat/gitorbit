@@ -130,3 +130,26 @@
     @apply font-sans;
   }
 }
+
+/* Theme tokens also reach Radix portals. Accent overrides are local preferences. */
+:root { --git-lane-0: #7057bc; --git-lane-1: #238978; --git-lane-2: #b77c19; --git-lane-3: #287bbf; --git-lane-4: #c34779; --git-lane-5: #59862a; --git-lane-6: #a24aa8; --git-lane-7: #a86539; }
+.dark { --git-lane-0: #a18cdb; --git-lane-1: #67b6a4; --git-lane-2: #ddb163; --git-lane-3: #6ca9dd; --git-lane-4: #dc84ad; --git-lane-5: #a0c471; --git-lane-6: #be90d5; --git-lane-7: #cf9b78; }
+:root[data-palette="violet"] { --background: #faf8ff; --foreground: #221b32; --popover: #ffffff; --popover-foreground: #221b32; --muted: #eee8f7; --muted-foreground: #71627f; --accent: #eae2f5; --accent-foreground: #221b32; --primary: #7c3aed; --primary-foreground: #ffffff; --ring: #8b5cf6; --border: #ded4eb; --input: #ded4eb; }
+:root[data-palette="violet"].dark { --background: #15111e; --foreground: #f3eefe; --popover: #211a2e; --popover-foreground: #f3eefe; --muted: #2a2139; --muted-foreground: #b4a6c9; --accent: #342847; --accent-foreground: #f3eefe; --primary: #b89afc; --primary-foreground: #1c122e; --border: #40314f; --input: #40314f; }
+:root[data-palette="ocean"] { --background: #f6fafc; --foreground: #13283c; --popover: #ffffff; --popover-foreground: #13283c; --muted: #e7f0f6; --muted-foreground: #536b80; --accent: #deedf7; --accent-foreground: #13283c; --primary: #0369a1; --primary-foreground: #ffffff; --ring: #0284c7; --border: #d2e1eb; --input: #d2e1eb; }
+:root[data-palette="ocean"].dark { --background: #101b25; --foreground: #e9f4fc; --popover: #172735; --popover-foreground: #e9f4fc; --muted: #203344; --muted-foreground: #9fb8cc; --accent: #294156; --accent-foreground: #e9f4fc; --primary: #7dd3fc; --primary-foreground: #082436; --border: #30475a; --input: #30475a; }
+:root[data-palette="forest"] { --background: #f7fbf9; --foreground: #142e26; --popover: #ffffff; --popover-foreground: #142e26; --muted: #e4f1eb; --muted-foreground: #536f62; --accent: #d9eee3; --accent-foreground: #142e26; --primary: #047857; --primary-foreground: #ffffff; --ring: #059669; --border: #d0e3d9; --input: #d0e3d9; }
+:root[data-palette="forest"].dark { --background: #101f19; --foreground: #eaf8f0; --popover: #182c22; --popover-foreground: #eaf8f0; --muted: #23392e; --muted-foreground: #a0bfad; --accent: #2d4839; --accent-foreground: #eaf8f0; --primary: #6ee7b7; --primary-foreground: #0b3021; --border: #345444; --input: #345444; }
+.history-row { background: color-mix(in srgb, var(--muted) 18%, var(--background)); }
+.history-row:nth-child(even) { background: color-mix(in srgb, var(--muted) 35%, var(--background)); }
+.history-row:hover { background: var(--accent); }
+.history-row[data-selected="true"] { background: color-mix(in srgb, var(--primary) 16%, var(--background)); }
+.history-ref { border-radius: 4px; font-size: 10px; font-weight: 400; line-height: 16px; height: 18px; padding: 0 5px; }
+:root:not(.dark) .text-amber-400 { color: #936400; }
+:root:not(.dark) .text-blue-400 { color: #2563a5; }
+:root:not(.dark) .text-red-400 { color: #b91c1c; }
+:root:not(.dark) .text-emerald-400 { color: #087852; }
+:root:not(.dark) .text-emerald-500 { color: #047857; }
+:root:not(.dark) .text-amber-500 { color: #936400; }
+.diff-added { background: color-mix(in srgb, #16a34a 12%, var(--background)); color: light-dark(#176a34, #9ae6ad); }
+.diff-removed { background: color-mix(in srgb, #dc2626 12%, var(--background)); color: light-dark(#a52222, #f7a2a2); }

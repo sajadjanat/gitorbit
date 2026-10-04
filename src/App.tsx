@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Activity,
   ArrowDown,
@@ -35,12 +35,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -58,7 +58,11 @@ import {
   type Workspace,
 } from "@/lib/native";
 import { useMonitor } from "@/lib/use-monitor";
+import { RepositoryHistory } from "@/components/repository-history";
+import { VersionControl } from "@/components/version-control";
+import { AppearanceButton } from "@/components/appearance";
 import "./index.css";
+import { version } from "../package.json";
 
 const tones = {
   red: "bg-red-500/10 text-red-400 border-red-500/20",
@@ -132,7 +136,12 @@ export default function App() {
   const [detail, setDetail] = useState<{
     workspaceId: string;
     path: string;
+    tab?: string;
   } | null>(null);
+  const [pulling, setPulling] = useState(false);
+  const pullGuard = useRef(false);
+  const [pullReport, setPullReport] = useState<{ title: string; total: number; results: { name: string; status: string; message: string }[] } | null>(null);
+  const [showPullReport, setShowPullReport] = useState(false);
   const desktop = native.available();
   const monitor = useMonitor(
     workspaces,
@@ -283,9 +292,22 @@ export default function App() {
     }
   }
 
+  async function pullRepositories(id: string, repos: Repository[], title: string) {
+    if (pullGuard.current || !repos.length) return;
+    pullGuard.current = true; setPulling(true); setShowPullReport(true);
+    setPullReport({ title: `Pull · ${title}`, total: repos.length, results: [] });
+    try {
+      for (const repo of repos) {
+        let result: { name: string; status: string; message: string };
+        try { result = { name: repo.name, status: "Updated", message: await native.action(id, repo.path, "pull") }; }
+        catch (error) { const message = String(error); result = { name: repo.name, status: message.startsWith("Skipped:") ? "Skipped" : "Failed", message }; }
+        setPullReport((old) => old ? { ...old, results: [...old.results, result] } : old);
+      }
+    } finally { setPulling(false); pullGuard.current = false; monitor.refresh(id); }
+  }
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="dark min-h-screen bg-background text-foreground flex flex-col">
+      <div className="min-h-screen bg-background text-foreground flex flex-col">
         <header className="h-14 shrink-0 border-b flex items-center justify-between px-6 gap-4">
           <div className="flex items-center gap-3">
             <span className="flex size-8 items-center justify-center rounded-lg border bg-muted/40">
@@ -302,6 +324,7 @@ export default function App() {
             </Badge>
           </div>
           <div className="flex items-center gap-4">
+            <AppearanceButton />
             <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
               <span
                 className={`size-1.5 rounded-full ${live ? "bg-emerald-400" : "bg-zinc-500"}`}
@@ -471,7 +494,7 @@ export default function App() {
                     <IconButton
                       label={`Close ${w.name}`}
                       onClick={() => void closeWorkspace(w.id)}
-                      disabled={saving}
+                      disabled={saving || pulling}
                     >
                       <X className="size-3" />
                     </IconButton>
@@ -528,12 +551,16 @@ export default function App() {
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={monitor.busy[active]}
+                      disabled={monitor.busy[active] || pulling}
                       onClick={() => monitor.refresh(active, true)}
                     >
                       <ArrowDown className="size-4" />
                       Fetch remotes
                     </Button>
+                    <Button variant="outline" size="sm" disabled={pulling || !snapshot?.repositories.length} onClick={() => void pullRepositories(active, snapshot?.repositories ?? [], workspace.name)}>
+                      <ArrowDown className="size-4" />{pulling ? "Pulling…" : "Pull all"}
+                    </Button>
+                    {pullReport && <Button variant="ghost" size="sm" onClick={() => setShowPullReport(true)}>Pull results</Button>}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -738,7 +765,7 @@ export default function App() {
                     {timeLabel(snapshot?.fetchedAt)}
                   </span>
                   <span>
-                    Click a repository for files <span className="mx-1">·</span>{" "}
+                    Click a repository for Git graph and files <span className="mx-1">·</span>{" "}
                     ? = no upstream count
                   </span>
                 </div>
@@ -749,6 +776,7 @@ export default function App() {
         <footer className="mt-auto px-6 py-3 border-t text-[11px] text-muted-foreground flex justify-between gap-3">
           <span className="flex items-center gap-1.5">
             <Activity className="size-3" />
+            <span>v{version} ·</span>
             {workspaces.length} workspace{workspaces.length === 1 ? "" : "s"}
             {environment?.gitVersion && (
               <span className="ml-1">· {environment.gitVersion}</span>
@@ -756,109 +784,39 @@ export default function App() {
           </span>
           <span>Local changes live · Remote counts update on fetch</span>
         </footer>
-        <Sheet
-          open={Boolean(detail)}
-          onOpenChange={(open) => {
-            if (!open) setDetail(null);
-          }}
-        >
-          <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-lg flex flex-col">
-            <SheetHeader>
-              <SheetTitle className="flex items-center gap-2">
-                <FolderGit2 className="size-4" />
-                {selected?.name ?? "Repository details"}
-              </SheetTitle>
-              <SheetDescription className="font-mono text-xs break-all">
-                {selected?.path}
-              </SheetDescription>
-            </SheetHeader>
-            {selected && (
-              <div className="px-4 pb-6 overflow-y-auto flex-1 space-y-5">
-                <div className="flex items-center justify-between">
-                  <Status repo={selected} />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      void openRepository(detail!.workspaceId, selected.path)
-                    }
-                  >
-                    <FolderOpen />
-                    Open folder
-                  </Button>
-                </div>
-                <dl className="grid grid-cols-[80px_1fr] gap-y-2 text-xs">
-                  <dt className="text-muted-foreground">Branch</dt>
-                  <dd>
-                    {selected.detached ? "Detached HEAD" : selected.branch}
-                  </dd>
-                  <dt className="text-muted-foreground">Upstream</dt>
-                  <dd>{selected.upstream ?? "Not configured"}</dd>
-                  <dt className="text-muted-foreground">Changes</dt>
-                  <dd>
-                    {selected.staged} staged · {selected.unstaged} unstaged ·{" "}
-                    {selected.untracked} untracked
-                  </dd>
-                </dl>
-                {(selected.error || selected.fetchError) && (
-                  <Alert variant="destructive">
-                    <AlertTitle>
-                      {selected.error ? "Git status failed" : "Fetch failed"}
-                    </AlertTitle>
-                    <AlertDescription className="whitespace-pre-wrap break-words">
-                      {selected.error || selected.fetchError}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                <div>
-                  <h3 className="text-xs font-medium mb-3">
-                    Changed files{" "}
-                    <span className="text-muted-foreground ml-1">
-                      {selected.changed}
-                    </span>
-                  </h3>
-                  {selected.files.length ? (
-                    <div className="rounded-md border divide-y">
-                      {selected.files.map((f, i) => (
-                        <div
-                          key={`${f.path}-${i}`}
-                          className="px-3 py-2.5 flex gap-3 items-start text-xs"
-                        >
-                          <code className="shrink-0 text-amber-400 whitespace-pre w-5">
-                            {f.status}
-                          </code>
-                          <span className="break-all font-mono">
-                            {f.originalPath && (
-                              <span className="text-muted-foreground">
-                                {f.originalPath} →{" "}
-                              </span>
-                            )}
-                            {f.path}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      {selected.error
-                        ? "File status is unavailable."
-                        : "No local changes."}
-                    </p>
-                  )}
-                  <p className="mt-3 text-[11px] text-muted-foreground">
-                    First column: staged · second: unstaged · ?? untracked
-                    <br />
-                    Counts follow Git, including .gitignore rules.
-                  </p>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Commit, push, and pull from your editor or terminal. Workspace
-                  Monitor shows what needs attention.
-                </p>
+        <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) setDetail(null); }}>
+          <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[1400px] h-[calc(100dvh-3rem)] max-h-[960px] flex flex-col gap-0 p-0 overflow-hidden">
+            <DialogHeader className="px-5 pt-5 pb-3 shrink-0 pr-12">
+              <DialogTitle className="flex items-center gap-2"><FolderGit2 className="size-4" />{selected?.name ?? "Repository"}</DialogTitle>
+              <DialogDescription className="font-mono text-[11px] truncate" title={selected?.path}>{selected?.path}</DialogDescription>
+            </DialogHeader>
+            {selected && detail && <>
+              <div className="flex flex-wrap items-center gap-3 px-5 pb-3 shrink-0 text-xs">
+                <Status repo={selected} /><span className="text-muted-foreground flex items-center gap-1"><GitBranch className="size-3" />{selected.detached ? "Detached HEAD" : selected.branch}</span>
+                <span className="text-muted-foreground hidden sm:inline">{selected.upstream ?? "No upstream"}</span>
+                <Button variant="outline" size="sm" className="ml-auto" disabled={pulling} onClick={() => void pullRepositories(detail.workspaceId, [selected], selected.name)}><ArrowDown className="size-3.5" />Pull repository</Button>
+                <Button variant="ghost" size="sm" onClick={() => void openRepository(detail.workspaceId, selected.path)}><FolderOpen className="size-3.5" />Open folder</Button>
               </div>
-            )}
-          </SheetContent>
-        </Sheet>
+              <Tabs key={selected.path} defaultValue={detail.tab ?? "graph"} className="flex-1 min-h-0 gap-0">
+                <TabsList className="mx-5 mb-2 shrink-0 w-fit"><TabsTrigger value="graph">Git graph</TabsTrigger><TabsTrigger value="changes">Version Control <span className="ml-1 text-muted-foreground">{selected.changed}</span></TabsTrigger></TabsList>
+                <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory workspaceId={detail.workspaceId} path={selected.path} refreshedAt={monitor.snapshots[detail.workspaceId]?.scannedAt} /></TabsContent>
+                <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl workspaceId={detail.workspaceId} path={selected.path} refreshedAt={monitor.snapshots[detail.workspaceId]?.scannedAt} blocked={pulling} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
+              </Tabs>
+            </>}
+          </DialogContent>
+        </Dialog>
+        <Dialog open={showPullReport} onOpenChange={setShowPullReport}>
+          <DialogContent className="sm:max-w-xl max-h-[85vh] flex flex-col">
+            <DialogHeader><DialogTitle>{pullReport?.title ?? "Pull results"}</DialogTitle><DialogDescription>Fast-forward updates. Repositories with local changes, no upstream, or divergent history need attention.</DialogDescription></DialogHeader>
+            {pullReport && <>
+              <p className="text-xs text-muted-foreground flex gap-2 items-center">{pulling && <LoaderCircle className="size-3 animate-spin" />}{pullReport.results.length}/{pullReport.total} processed · {pullReport.results.filter((r) => r.status === "Updated").length} updated · {pullReport.results.filter((r) => r.status === "Skipped").length} skipped · {pullReport.results.filter((r) => r.status === "Failed").length} failed</p>
+              <div className="overflow-auto min-h-0 rounded-md border divide-y">
+                {pullReport.results.map((result, i) => <div key={i} className="p-3 text-xs"><div className="flex justify-between gap-3"><span className="font-medium">{result.name}</span><span className={result.status === "Updated" ? "text-emerald-500" : result.status === "Skipped" ? "text-amber-500" : "text-destructive"}>{result.status}</span></div><p className="text-muted-foreground mt-1 whitespace-pre-wrap break-words">{result.message}</p></div>)}
+                {!pullReport.results.length && <p className="p-4 text-xs text-muted-foreground">Updating repositories…</p>}
+              </div>
+            </>}
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );

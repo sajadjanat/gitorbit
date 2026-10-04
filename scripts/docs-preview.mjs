@@ -38,6 +38,31 @@ const data = {
     products: snapshot('products', [repository('customer-portal', { changed: 2 }), repository('billing-api')]),
   },
 }
+const commit = (hash, parents, subject, index) => ({ hash: hash.padEnd(40, '0'), parents: parents.map(p => p.padEnd(40, '0')), subject, author: 'Demo Author', timestamp: 1791102000 - index * 3600 });
+data.history = {
+  commits: [
+    commit('a1', ['b1'], 'feat(workspace): add repository version control', 0),
+    commit('b1', ['c1', 'd1'], 'merge: integrate feature/git-graph', 1),
+    commit('d1', ['d2'], 'feat(graph): show branch labels and merge lanes', 2),
+    commit('d2', ['e1'], 'feat(graph): render commit parent connections', 3),
+    commit('c1', ['c2', 'f1'], 'merge: integrate feature/themes', 4),
+    commit('f1', ['f2'], 'feat(themes): add ocean, violet and forest palettes', 5),
+    commit('f2', ['e1'], 'feat(themes): add light mode and custom accent', 6),
+    commit('c2', ['e1'], 'fix(monitor): keep inactive workspaces up to date', 7),
+    commit('e1', ['e2'], 'feat(workspaces): persist workspace tabs', 8),
+    commit('e2', ['e3'], 'feat(git): show push and pull counts', 9),
+    commit('e3', ['e4'], 'feat(ui): add compact repository table', 10),
+    commit('e4', [], 'Initial commit', 11),
+  ],
+  refs: [
+    { hash: 'a1'.padEnd(40, '0'), name: 'main', kind: 'branch' },
+    { hash: 'a1'.padEnd(40, '0'), name: 'origin/main', kind: 'remote' },
+    { hash: 'd1'.padEnd(40, '0'), name: 'feature/git-graph', kind: 'branch' },
+    { hash: 'f1'.padEnd(40, '0'), name: 'feature/themes', kind: 'branch' },
+    { hash: 'e1'.padEnd(40, '0'), name: 'v0.1.0', kind: 'tag' },
+  ],
+  head: 'a1'.padEnd(40, '0'), hasMore: false, shallow: false,
+};
 await mkdir('.dev', { recursive: true })
 await writeFile('.dev/readme-data.json', JSON.stringify(data, null, 2))
 await writeFile('.dev/readme-preview.html', `<!doctype html>
@@ -55,6 +80,9 @@ window.__TAURI_INTERNALS__ = {
   if(command==='check_environment') return data.environment;
   if(command==='load_workspaces') return roots;
   if(command==='scan_workspace') return data.snapshots[args.workspaceId];
+  if(command==='repository_history') return data.history;
+  if(command==='repository_changes') return data.snapshots.studio.repositories[0];
+  if(command==='repository_diff') return { text: 'diff --git a/'+args.file+' b/'+args.file+'\\n--- a/'+args.file+'\\n+++ b/'+args.file+'\\n@@ -1,4 +1,5 @@\\n export function refreshWorkspace() {\\n-  return scan(activeWorkspace);\\n+  return Promise.all(workspaces.map(scan));\\n+  // Keep every workspace up to date.\\n }', truncated: false };
   if(command==='save_workspaces') {roots=args.workspaces; return null;}
   if(command==='plugin:event|listen') return ++next;
   if(command==='plugin:event|unlisten') return null;

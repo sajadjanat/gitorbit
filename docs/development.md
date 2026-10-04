@@ -2,13 +2,15 @@
 
 ## Shared Git engine
 
-The diagnostic CLI and GUI use the same `git.rs` source module. Tests run in the CLI binary without loading the GUI's native dialog libraries.
+The diagnostic CLI and GUI share the `git.rs`, `history.rs`, and `version_control.rs` source modules. Tests run in the CLI binary without loading the GUI's native dialog libraries.
 
 ```sh
 cargo run --manifest-path src-tauri/Cargo.toml --bin monitor-cli -- /path/to/workspace
 ```
 
 It prints a JSON snapshot and does not fetch remotes or edit source files.
+
+Pass `--history /path/to/repository` to print the real commit graph data and refs. Integration tests create disposable repositories and a local bare remote for staging, committing, and pull scenarios.
 
 ## Native smoke test
 
@@ -21,7 +23,7 @@ $env:WORKSPACE_MONITOR_SMOKE_REPORT = 'C:/Temp/workspace-monitor-smoke.json'
 ./src-tauri/target/debug/workspace-monitor.exe
 ```
 
-The app renders real Git results, writes its report, and exits. It does not edit workspace source files or saved tabs. Clear these environment variables before a regular debug run. The mode is disabled in release builds.
+Use a fixture repository with commits, a staged change, an unstaged `tracked.txt` file, and an untracked file. The app renders real Git results, opens the first repository, verifies graph rows, opens Version Control and a file diff, writes its report, and exits. It does not edit workspace source files or saved tabs. Clear these environment variables before a regular debug run. The mode is disabled in release builds.
 
 ## Optional local Windows toolchain
 

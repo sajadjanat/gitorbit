@@ -49,6 +49,25 @@ export interface Environment {
     systemPrompt: boolean;
   };
 }
+export interface GitCommit {
+  hash: string;
+  parents: string[];
+  author: string;
+  timestamp: number;
+  subject: string;
+}
+export interface GitRef {
+  hash: string;
+  name: string;
+  kind: "branch" | "remote" | "tag";
+}
+export interface GitHistory {
+  commits: GitCommit[];
+  refs: GitRef[];
+  head: string | null;
+  hasMore: boolean;
+  shallow: boolean;
+}
 export const native = {
   available: isTauri,
   environment: () => invoke<Environment>("check_environment"),
@@ -65,6 +84,11 @@ export const native = {
   downloadGit: () => invoke<void>("open_git_download"),
   openRepository: (workspaceId: string, path: string) =>
     invoke<void>("open_repository", { workspaceId, path }),
+  history: (workspaceId: string, path: string, limit: number, scope: "all" | "head") =>
+    invoke<GitHistory>("repository_history", { workspaceId, path, limit, scope }),
+  changes: (workspaceId: string, path: string) => invoke<Repository>("repository_changes", { workspaceId, path }),
+  diff: (workspaceId: string, path: string, file: string, staged: boolean) => invoke<{text: string; truncated: boolean}>("repository_diff", { workspaceId, path, file, staged }),
+  action: (workspaceId: string, path: string, action: "stage" | "unstage" | "commit" | "pull", paths: string[] = [], message: string | null = null) => invoke<string>("repository_action", { workspaceId, path, action, paths, message }),
 };
 
 export function attention(r: Repository) {

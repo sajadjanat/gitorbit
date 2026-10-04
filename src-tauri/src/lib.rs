@@ -1,5 +1,7 @@
 pub mod git;
+pub mod history;
 mod install;
+pub mod version_control;
 use git::{Snapshot, Workspace};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::{
@@ -21,6 +23,7 @@ struct AppState {
     workspaces: Arc<Mutex<Vec<Workspace>>>,
     runtimes: Mutex<HashMap<String, Arc<Mutex<Runtime>>>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
+    operation_locks: Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>,
 }
 fn config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.path()
@@ -206,13 +209,7 @@ fn open_git_download(app: tauri::AppHandle) -> Result<(), String> {
         .open_url(install::plan().download_url, None::<&str>)
         .map_err(|e| e.to_string())
 }
-#[tauri::command]
-fn open_repository(
-    app: tauri::AppHandle,
-    state: State<AppState>,
-    workspace_id: String,
-    path: String,
-) -> Result<(), String> {
+fn repository_path(state: &AppState, workspace_id: &str, path: &str) -> Result<PathBuf, String> {
     let root = state
         .workspaces
         .lock()
@@ -226,9 +223,94 @@ fn open_repository(
     if !path.starts_with(root) || !path.join(".git").exists() {
         return Err("Choose a repository inside the workspace.".into());
     }
+    Ok(path)
+}
+#[tauri::command]
+fn open_repository(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    workspace_id: String,
+    path: String,
+) -> Result<(), String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
     app.opener()
         .open_path(path.to_string_lossy(), None::<&str>)
         .map_err(|e| e.to_string())
+}
+#[tauri::command]
+async fn repository_history(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    path: String,
+    limit: usize,
+    scope: String,
+) -> Result<history::History, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        history::read(&git, &path, limit, &scope)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_changes(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    path: String,
+) -> Result<git::Repository, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        version_control::changes(&git, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_diff(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    path: String,
+    file: String,
+    staged: bool,
+) -> Result<version_control::Diff, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        version_control::diff(&git, &path, &file, staged)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_action(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    workspace_id: String,
+    path: String,
+    action: String,
+    paths: Vec<String>,
+    message: Option<String>,
+) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state
+        .operation_locks
+        .lock()
+        .map_err(|e| e.to_string())?
+        .entry(path.clone())
+        .or_default()
+        .clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock.lock().map_err(|e| e.to_string())?;
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        version_control::action(&git, &path, &action, &paths, message.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    // A failing hook or pull can still have changed Git metadata; always refresh.
+    let _ = app.emit("workspace-invalidated", &workspace_id);
+    result
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -237,19 +319,39 @@ pub fn run() {
             #[cfg(debug_assertions)]
             if std::env::var_os("WORKSPACE_MONITOR_SMOKE_ROOT").is_some() && payload.event() == tauri::webview::PageLoadEvent::Finished {
                 let _ = webview.eval(r#"(() => {
-                    let attempts = 0;
-                    const timer = setInterval(() => {
-                        const rows = Array.from(document.querySelectorAll('tbody tr'));
-                        const names = rows.flatMap(row => { const b = row.querySelector('td button'); return b ? [b.textContent] : []; });
-                        if (!names.length && ++attempts < 160) return;
+                    let attempts = 0, phase = 0, names = [], graphRows = 0;
+                    const finish = (ok) => {
                         clearInterval(timer);
-                        window.__TAURI_INTERNALS__.invoke('smoke_report', { report: { ok: names.length > 0, repositories: names, body: document.body.innerText } });
+                        window.__TAURI_INTERNALS__.invoke('smoke_report', { report: { ok, repositories: names, graphRows, body: document.body.innerText } });
+                    };
+                    const timer = setInterval(() => {
+                        if (++attempts > 200) return finish(false);
+                        if (phase === 0) {
+                            const buttons = Array.from(document.querySelectorAll('tbody tr td:first-child button'));
+                            names = buttons.map(b => b.textContent);
+                            if (!names.length) return;
+                            buttons[0].click(); phase = 1;
+                        } else if (phase === 1) {
+                            graphRows = document.querySelectorAll('[data-graph-row]').length;
+                            if (!graphRows) return;
+                            const tab = Array.from(document.querySelectorAll('[role=tab]')).find(t => t.textContent.startsWith('Version Control'));
+                            if (!tab) return;
+                            tab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); phase = 2;
+                        } else {
+                            const body = document.body.innerText;
+                            const message = document.querySelector('textarea#commit-message');
+                            if (!message || !body.includes('Staged') || !body.includes('Unversioned Files')) return;
+                            const file = Array.from(document.querySelectorAll('[role=tabpanel] button')).find(b => b.title === 'tracked.txt');
+                            if (phase === 2) { if (file) { file.click(); phase = 3; } return; }
+                            if (phase === 3 && !document.querySelector('[aria-label="File diff"]')?.textContent.includes('+Changed')) return;
+                            finish(true);
+                        }
                     }, 250);
                 })()"#);
             }
             #[cfg(not(debug_assertions))] let _ = (webview, payload);
         })
-        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, smoke_report])
+        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_changes, repository_diff, repository_action, smoke_report])
         .run(tauri::generate_context!()).expect("error while running Workspace Monitor");
 }
 

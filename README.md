@@ -5,7 +5,7 @@
   <p>A compact desktop Git monitor built with Tauri, React, and shadcn/ui.</p>
   <p>
     <a href="https://github.com/sajadjanat/workspace-monitor/actions/workflows/build.yml"><img src="https://github.com/sajadjanat/workspace-monitor/actions/workflows/build.yml/badge.svg" alt="Desktop builds" /></a>
-    <a href="https://github.com/sajadjanat/workspace-monitor/releases"><img src="https://img.shields.io/badge/version-0.1.0-blue" alt="Version 0.1.0" /></a>
+    <a href="https://github.com/sajadjanat/workspace-monitor/releases"><img src="https://img.shields.io/badge/version-0.2.0-blue" alt="Version 0.2.0" /></a>
     <img src="https://img.shields.io/badge/Tauri-2-24c8db?logo=tauri&logoColor=white" alt="Tauri 2" />
     <img src="https://img.shields.io/badge/UI-shadcn%2Fui-18181b?logo=shadcnui&logoColor=white" alt="shadcn/ui" />
   </p>
@@ -17,7 +17,7 @@
   </p>
 </div>
 
-![Workspace Monitor showing multiple workspace tabs and Git status](docs/images/workspace-overview.jpg)
+![Workspace Monitor showing multiple workspace tabs and Git status](docs/images/workspace-overview.png)
 
 *The actual interface, shown with example workspaces. Screenshots contain no personal project data.*
 
@@ -34,18 +34,31 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 | **Workspace tabs** | Add multiple folders, switch between them, and restore your tabs when the app reopens. |
 | **Live local status** | File events trigger a debounced refresh, with a periodic scan to recover missed events. |
 | **Clear next steps** | Colored labels identify Commit, Push, Pull, Resolve, Sync branch, and upstream problems. |
-| **File details** | Open a side panel for changed paths, staged/unstaged counts, renames, and errors. |
+| **Git graph** | Click a repository to see real commit history, branch lanes, merges, HEAD, branches, and tags. |
+| **Version Control** | Inspect staged, unstaged, and unversioned files; review diffs, stage a selection, unstage, and commit. |
+| **Pull one or all** | Fast-forward one repository or every repository in the active workspace, with individual results. |
+| **Your appearance** | Light, dark, or system mode; Neutral, Violet, Ocean, and Forest palettes; a custom accent color. |
 | **Remote updates** | Fetch manually or opt into a fetch every 60 seconds for each workspace. |
 | **Git onboarding** | Check Git at startup and offer an OS installer or the official download page if it is missing. |
 | **Native folder access** | Choose workspaces with the system folder picker and open repositories in your file manager. |
-| **Compact shadcn/ui interface** | Dark surfaces, readable type, keyboard-friendly controls, search, and status filtering. |
+| **Compact shadcn/ui interface** | Readable type, keyboard-friendly controls, search, and status filtering. |
 
 <details>
-<summary><strong>Preview file details and Git setup</strong></summary>
+<summary><strong>Explore the graph, Version Control, and themes</strong></summary>
 
-### Changed files without clutter
+### Follow branches and merges
 
-![Repository details showing staged and unstaged files](docs/images/repository-details.jpg)
+![Git history with colored branch lanes and merge connections](docs/images/git-graph.png)
+
+### Review, stage, and commit
+
+![Version Control with file groups and a unified diff](docs/images/version-control.png)
+
+### A lighter workspace
+
+![Workspace overview in the Ocean light theme](docs/images/light-theme.png)
+
+![Appearance preferences with modes, palettes, and custom accent](docs/images/appearance.png)
 
 ### A clear first step when Git is missing
 
@@ -74,8 +87,10 @@ The [desktop build workflow](https://github.com/sajadjanat/workspace-monitor/act
 
 1. Open Workspace Monitor. If Git is missing, select **Install Git** or **Download Git**, then **Check again**.
 2. Select **Add workspace** and choose a folder containing your Git repositories. You can choose multiple folders at once.
-3. Read the **Next** column. Click a repository to inspect its files or errors.
+3. Read the **Next** column. Click a repository for its **Git graph**; switch to **Version Control** for files, diffs, and commits.
 4. Select **Fetch remotes** for current upstream counts. Enable **Auto fetch** if you want those counts refreshed periodically.
+5. Select **Pull all** to update the active workspace, or **Pull repository** in a repository's dialog. Review the updated, skipped, and failed results.
+6. Open **Appearance** in the header to choose your mode, palette, and accent.
 
 ### Read the table
 
@@ -84,7 +99,7 @@ The [desktop build workflow](https://github.com/sajadjanat/workspace-monitor/act
 | **Changes** | Changed Git entries, including staged, unstaged, and untracked paths. |
 | **Push** | Commits ahead of the tracked upstream. |
 | **Pull** | Commits behind the tracked upstream. |
-| **Next** | The suggested action; your editor or terminal performs commits, pushes, and pulls. |
+| **Next** | The suggested action. Stage, commit, and pull in the app; push from your editor or terminal. |
 | **—** | Zero changes or zero commits. |
 | **?** | No reliable upstream count is available. Inspect the repository details. |
 
@@ -96,7 +111,23 @@ Conflicts, detached HEAD, missing upstreams, and command failures remain visible
 - **Remote counts:** reflect local tracking refs until you fetch. Opt-in automatic fetch runs approximately every 60 seconds while Live is enabled.
 - **Paused:** automatic monitoring stops; manual refresh and fetch remain available.
 
-Fetch updates Git's remote refs. Workspace Monitor never commits, pushes, pulls, resets, or modifies your source files.
+Fetch updates Git's remote refs. Stage, unstage, commit, and pull happen only after an explicit click. The app never pushes automatically.
+
+### Version Control
+
+Files are grouped into **Staged**, **Changes**, and **Unversioned Files**, with individual untracked files shown even inside new folders. A partially staged file appears in both Staged and Changes. Click either entry to review the corresponding **HEAD → Index** or **Index → Working tree** diff.
+
+Select checkboxes, then choose **Stage selected** or **Unstage selected**. Enter a commit message and select **Commit staged** to commit the current index; unchecked unstaged files are not added automatically. Existing Git hooks and signing settings still apply. Refresh reloads the file list, and operation errors remain visible.
+
+### Pull updates
+
+**Pull all** includes every repository in the active workspace, including clean repositories hidden by search or the attention filter. It processes repositories in sequence and shows individual results; one failure does not stop the remaining repositories.
+
+Pull uses `git pull --ff-only --no-rebase --no-edit`. Repositories with local changes (including untracked files), detached HEAD, or no upstream are skipped. Divergent history fails without merging or rebasing. Local files are never automatically stashed, discarded, or force-reset. Resolve the reported issue and retry. Git uses your existing remote credentials.
+
+### Git history
+
+The graph follows actual commit parents in topological order, including merge connections and local branch, remote, and tag labels. Choose **All branches** or **Current HEAD**. History starts with 200 commits; load more in batches up to 5,000. Shallow clones show only locally available history. Fetch first to update remote branch labels.
 
 ## Development
 
@@ -117,7 +148,7 @@ npm run build
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 ```
 
-The current suite includes **8 UI/monitoring tests** and **8 Git-engine tests**. It checks independent tabs, event debounce, scan concurrency, install success/failure, rename and conflict parsing, Unicode paths, ignore rules, and real Git divergence/fetch behavior.
+The suite covers independent tabs, event debounce, scan concurrency, onboarding, theme persistence, graph topology and pagination, stale history requests, selected staging and commits, bulk pull coverage, Unicode and literal paths, renames, conflicts, and real fast-forward/divergent pull behavior. A native smoke test also exercises the real desktop graph and file diff.
 
 ### Package
 
@@ -160,10 +191,16 @@ The Rust scanner discovers repositories and reads `git status --porcelain=v2`. I
 
 | Location | Purpose |
 | --- | --- |
-| `src/App.tsx` | Workspace tabs, the status table, onboarding, and file details. |
+| `src/App.tsx` | Workspace tabs, the status table, repository dialogs, and pull results. |
+| `src/components/repository-history.tsx` | Interactive commit history and branch labels. |
+| `src/lib/git-graph.ts` | Commit parent connections and colored lane layout. |
+| `src/components/version-control.tsx` | File selection, staging, diffs, and commits. |
+| `src/components/appearance.tsx` | Saved modes, palettes, and custom accents. |
 | `src/components/ui/` | Actual shadcn/ui source components. |
 | `src/lib/use-monitor.ts` | Debounced refresh, background scheduling, and bounded concurrency. |
 | `src-tauri/src/git.rs` | Repository discovery, Git commands, and status parsing. |
+| `src-tauri/src/history.rs` | Real history and refs from system Git. |
+| `src-tauri/src/version_control.rs` | Validated file operations, diffs, commits, and fast-forward pulls. |
 | `src-tauri/src/install.rs` | OS-specific Git detection and installation. |
 | `src-tauri/src/lib.rs` | Native commands, workspace persistence, and file watchers. |
 
@@ -171,11 +208,13 @@ The Rust scanner discovers repositories and reads `git status --porcelain=v2`. I
 
 **Why are `.idea` files still listed?** Git ignores only untracked files. If those files are already tracked, add the ignore rule and untrack them in your repository. Workspace Monitor follows Git's result.
 
-**Why does an untracked folder count as one change?** Counts follow Git's `--untracked-files=normal` mode. Staged and unstaged counts may overlap when the same file has both kinds of edits.
+**Why does an untracked folder count as one change?** Overview counts follow Git's `--untracked-files=normal` mode. Version Control expands untracked folders into individual files. Staged and unstaged counts may overlap when the same file has both kinds of edits.
 
 **What if fetch fails?** Authenticate or resolve remote access in your terminal, then retry. Existing Git configuration and credentials are used; this app does not store credentials or prompt for them during background scans.
 
 **Where are tabs saved?** In `workspaces.json` under the OS app configuration directory for `ir.sepehra.workspace-monitor`. Closing a tab stops monitoring it without deleting its folder.
+
+**Where are themes saved?** In the app's local storage. System mode follows OS appearance changes; palette and accent settings survive restarts.
 
 **How does Git installation work?** The button uses Windows Package Manager, Homebrew/Apple developer tools, or a supported Linux package manager through `pkexec`. The OS handles any permission prompts. If no supported installer is available, the app opens the official Git download page. Installation starts only after a click.
 
