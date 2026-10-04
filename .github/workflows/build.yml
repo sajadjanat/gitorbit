@@ -1,0 +1,35 @@
+name: Test and build desktop apps
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install Linux native dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - run: npm run tauri build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workspace-monitor-${{ runner.os }}
+          path: src-tauri/target/release/bundle/
+          if-no-files-found: error

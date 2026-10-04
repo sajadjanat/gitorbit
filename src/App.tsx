@@ -1,0 +1,892 @@
+import { useEffect, useState } from "react";
+import {
+  Activity,
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Download,
+  FolderGit2,
+  FolderOpen,
+  GitBranch,
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+  Search,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  native,
+  attention,
+  nextStep,
+  type Environment,
+  type Repository,
+  type Workspace,
+} from "@/lib/native";
+import { useMonitor } from "@/lib/use-monitor";
+import "./index.css";
+
+const tones = {
+  red: "bg-red-500/10 text-red-400 border-red-500/20",
+  amber: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  blue: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  green: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  neutral: "bg-muted/30 text-muted-foreground border-border",
+};
+function Status({ repo }: { repo: Repository }) {
+  const step = nextStep(repo);
+  return (
+    <Badge
+      variant="outline"
+      className={`rounded-md px-2 py-0.5 font-normal ${tones[step.tone]}`}
+    >
+      {step.label}
+    </Badge>
+  );
+}
+function IconButton({
+  label,
+  children,
+  onClick,
+  disabled = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={label}
+          onClick={onClick}
+          disabled={disabled}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+function timeLabel(time: number | null | undefined) {
+  return time
+    ? new Date(time).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+    : "Not yet";
+}
+
+export default function App() {
+  const [environment, setEnvironment] = useState<Environment | null>(null);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [active, setActive] = useState("");
+  const [ready, setReady] = useState(false);
+  const [live, setLive] = useState(true);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("attention");
+  const [detail, setDetail] = useState<{
+    workspaceId: string;
+    path: string;
+  } | null>(null);
+  const desktop = native.available();
+  const monitor = useMonitor(
+    workspaces,
+    ready && Boolean(environment?.gitVersion),
+    live,
+  );
+  const workspace = workspaces.find((w) => w.id === active);
+  const snapshot = monitor.snapshots[active];
+  const selected = detail
+    ? monitor.snapshots[detail.workspaceId]?.repositories.find(
+        (r) => r.path === detail.path,
+      )
+    : undefined;
+  const repositories = [...(snapshot?.repositories ?? [])]
+    .filter(
+      (r) =>
+        r.name.toLowerCase().includes(search.toLowerCase()) &&
+        (filter !== "attention" || attention(r)),
+    )
+    .sort(
+      (a, b) =>
+        Number(attention(b)) - Number(attention(a)) ||
+        a.name.localeCompare(b.name),
+    );
+  const needsAttention = snapshot?.repositories.filter(attention).length ?? 0;
+
+  useEffect(() => {
+    if (!native.available()) return;
+    let cancelled = false;
+    void Promise.allSettled([native.environment(), native.load()])
+      .then(([env, roots]) => {
+        if (cancelled) return;
+        if (env.status === "fulfilled") setEnvironment(env.value);
+        else setError(String(env.reason));
+        if (roots.status === "rejected") {
+          setError(String(roots.reason));
+          return;
+        }
+        setWorkspaces(roots.value);
+        const saved = localStorage.getItem("active-workspace");
+        setActive(
+          roots.value.some((w) => w.id === saved)
+            ? saved!
+            : (roots.value[0]?.id ?? ""),
+        );
+      })
+      .catch((e) => {
+        if (!cancelled) setError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  useEffect(() => {
+    if (active) localStorage.setItem("active-workspace", active);
+  }, [active]);
+
+  async function checkGit() {
+    setChecking(true);
+    setError("");
+    try {
+      setEnvironment(await native.environment());
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setChecking(false);
+    }
+  }
+  async function installGit() {
+    setInstalling(true);
+    setError("");
+    setNotice("");
+    try {
+      setNotice(await native.installGit());
+      setEnvironment(await native.environment());
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setInstalling(false);
+    }
+  }
+  async function save(roots: Workspace[]) {
+    setSaving(true);
+    setError("");
+    try {
+      const warning = await native.save(roots);
+      setWorkspaces(roots);
+      setNotice(warning ?? "");
+      return true;
+    } catch (e) {
+      setError(String(e));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function addWorkspaces() {
+    setError("");
+    try {
+      const chosen = await native.chooseFolders();
+      if (!chosen) return;
+      const paths = Array.isArray(chosen) ? chosen : [chosen];
+      const key = (p: string) =>
+        environment?.platform === "windows"
+          ? p.replace(/\\/g, "/").replace(/\/$/, "").toLowerCase()
+          : p.replace(/\/$/, "");
+      const newRoots: Workspace[] = [];
+      for (const path of paths) {
+        const existing = [...workspaces, ...newRoots].find(
+          (w) => key(w.path) === key(path),
+        );
+        if (existing) {
+          setActive(existing.id);
+          continue;
+        }
+        newRoots.push({
+          id: crypto.randomUUID(),
+          name:
+            path
+              .replace(/[\\/]+$/, "")
+              .split(/[\\/]/)
+              .pop() || path,
+          path,
+          autoFetch: false,
+        });
+      }
+      if (newRoots.length && (await save([...workspaces, ...newRoots])))
+        setActive(newRoots[newRoots.length - 1].id);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+  async function closeWorkspace(id: string) {
+    const roots = workspaces.filter((w) => w.id !== id);
+    if (await save(roots)) {
+      if (active === id) setActive(roots[0]?.id ?? "");
+      if (detail?.workspaceId === id) setDetail(null);
+    }
+  }
+  async function openRepository(id: string, path: string) {
+    try {
+      await native.openRepository(id, path);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <div className="dark min-h-screen bg-background text-foreground flex flex-col">
+        <header className="h-14 shrink-0 border-b flex items-center justify-between px-6 gap-4">
+          <div className="flex items-center gap-3">
+            <span className="flex size-8 items-center justify-center rounded-lg border bg-muted/40">
+              <FolderGit2 className="size-4" />
+            </span>
+            <h1 className="text-sm font-semibold tracking-tight">
+              Workspace Monitor
+            </h1>
+            <Badge
+              variant="outline"
+              className="hidden sm:inline-flex text-[10px] font-normal text-muted-foreground"
+            >
+              Local Git
+            </Badge>
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+              <span
+                className={`size-1.5 rounded-full ${live ? "bg-emerald-400" : "bg-zinc-500"}`}
+              />
+              {live ? "Live" : "Paused"}
+              <Switch
+                aria-label="Live monitoring"
+                checked={live}
+                onCheckedChange={setLive}
+                disabled={!environment?.gitVersion}
+              />
+            </label>
+            <Button
+              size="sm"
+              onClick={() => void addWorkspaces()}
+              disabled={!ready || !environment?.gitVersion || saving}
+            >
+              <Plus className="size-4" />
+              Add workspace
+            </Button>
+          </div>
+        </header>
+
+        {(error || notice) && (
+          <div className="px-6 pt-4">
+            <Alert
+              variant={error ? "destructive" : "default"}
+              className="relative pr-10"
+            >
+              <AlertTitle>
+                {error ? "Something needs attention" : "Notice"}
+              </AlertTitle>
+              <AlertDescription className="break-words whitespace-pre-wrap">
+                {error || notice}
+              </AlertDescription>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="absolute right-2 top-2"
+                aria-label="Dismiss message"
+                onClick={() => {
+                  setError("");
+                  setNotice("");
+                }}
+              >
+                <X />
+              </Button>
+            </Alert>
+          </div>
+        )}
+
+        {!desktop ? (
+          <Empty
+            title="Open the desktop app"
+            description="Workspace Monitor needs the desktop app to access local folders and Git."
+            icon={<FolderGit2 />}
+          />
+        ) : !ready ? (
+          <div className="p-6 space-y-4">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-64 w-full" />
+            <p className="text-xs text-muted-foreground">
+              Checking Git and restoring workspaces…
+            </p>
+          </div>
+        ) : !environment?.gitVersion ? (
+          <div className="flex-1 flex items-center justify-center px-6 py-20">
+            <div className="max-w-md w-full space-y-5">
+              <span className="inline-flex size-12 items-center justify-center rounded-xl border bg-muted/30">
+                <GitBranch className="size-5" />
+              </span>
+              <div>
+                <h2 className="text-xl font-semibold tracking-tight">
+                  Install Git to get started
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                  Git was not found on this computer. Install it once to monitor
+                  all your workspaces.
+                </p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {environment?.installer.description ??
+                  "Check Git availability and try again."}
+              </p>
+              {environment?.installer.command && (
+                <code className="block rounded-md border bg-muted/20 p-3 text-xs break-words text-muted-foreground">
+                  {environment.installer.command}
+                </code>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={() =>
+                    void (environment?.installer.available
+                      ? installGit()
+                      : native.downloadGit().catch((e) => setError(String(e))))
+                  }
+                  disabled={installing || !environment}
+                >
+                  {installing ? (
+                    <LoaderCircle className="animate-spin" />
+                  ) : (
+                    <Download />
+                  )}
+                  {installing
+                    ? "Installing Git…"
+                    : environment?.installer.available
+                      ? "Install Git"
+                      : "Download Git"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => void checkGit()}
+                  disabled={checking || installing}
+                >
+                  {checking && <LoaderCircle className="animate-spin" />}Check
+                  again
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Your operating system handles any installation permissions.
+              </p>
+            </div>
+          </div>
+        ) : !workspaces.length ? (
+          <Empty
+            title="Your workspaces, at a glance"
+            description="Choose a folder containing your Git projects. Add more folders as tabs and monitor them together."
+            icon={<FolderGit2 />}
+          >
+            <Button onClick={() => void addWorkspaces()} disabled={saving}>
+              <Plus />
+              Add your first workspace
+            </Button>
+          </Empty>
+        ) : (
+          <Tabs
+            value={active}
+            onValueChange={(value) => {
+              setActive(value);
+              setSearch("");
+            }}
+            className="gap-0 flex-1"
+          >
+            <div className="border-b overflow-x-auto overflow-y-hidden px-6">
+              <TabsList variant="line" className="h-12 gap-1 justify-start">
+                {workspaces.map((w) => (
+                  <div key={w.id} className="flex items-center h-full shrink-0">
+                    <TabsTrigger
+                      value={w.id}
+                      className="h-full rounded-none px-3 gap-2"
+                    >
+                      <FolderOpen className="size-3.5" />
+                      {w.name}
+                      {Boolean(
+                        monitor.snapshots[w.id]?.repositories.filter(attention)
+                          .length,
+                      ) && (
+                        <span className="rounded bg-amber-400/10 px-1.5 py-0.5 text-[10px] text-amber-400 tabular-nums">
+                          {
+                            monitor.snapshots[w.id].repositories.filter(
+                              attention,
+                            ).length
+                          }
+                        </span>
+                      )}
+                    </TabsTrigger>
+                    <IconButton
+                      label={`Close ${w.name}`}
+                      onClick={() => void closeWorkspace(w.id)}
+                      disabled={saving}
+                    >
+                      <X className="size-3" />
+                    </IconButton>
+                  </div>
+                ))}
+              </TabsList>
+            </div>
+            {workspace && (
+              <TabsContent value={active} className="m-0 px-6 pt-6 pb-4">
+                <div className="flex flex-wrap gap-3 items-start justify-between mb-4">
+                  <div>
+                    <h2 className="text-lg font-semibold tracking-tight">
+                      {workspace.name}
+                      <span className="ml-3 font-normal text-xs text-muted-foreground">
+                        {snapshot
+                          ? `${snapshot.repositories.length} repositories`
+                          : "Scanning repositories…"}
+                        {snapshot && (
+                          <>
+                            {" "}
+                            <span className="mx-1.5">/</span>
+                            <span
+                              className={
+                                needsAttention
+                                  ? "text-amber-400"
+                                  : "text-emerald-400"
+                              }
+                            >
+                              {monitor.errors[active] ||
+                              snapshot.diagnostics.length
+                                ? "Status incomplete"
+                                : needsAttention
+                                  ? `${needsAttention} need attention`
+                                  : "All up to date"}
+                            </span>
+                          </>
+                        )}
+                      </span>
+                    </h2>
+                    <p className="mt-1 text-xs text-muted-foreground break-all font-mono">
+                      {workspace.path}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <IconButton
+                      label="Refresh status"
+                      onClick={() => monitor.refresh(active)}
+                      disabled={monitor.busy[active]}
+                    >
+                      <RefreshCw
+                        className={`size-4 ${monitor.busy[active] ? "animate-spin" : ""}`}
+                      />
+                    </IconButton>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={monitor.busy[active]}
+                      onClick={() => monitor.refresh(active, true)}
+                    >
+                      <ArrowDown className="size-4" />
+                      Fetch remotes
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <div className="flex gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                      <Input
+                        aria-label="Search repositories"
+                        placeholder="Find a repository…"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-8 h-8 w-52 text-xs"
+                      />
+                    </div>
+                    <Select value={filter} onValueChange={setFilter}>
+                      <SelectTrigger
+                        aria-label="Repository filter"
+                        className="h-8 w-40 text-xs"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All repositories</SelectItem>
+                        <SelectItem value="attention">
+                          Needs attention
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                    Auto fetch{" "}
+                    <span className="text-muted-foreground/60">every 60s</span>
+                    <Switch
+                      aria-label="Auto fetch remotes"
+                      checked={workspace.autoFetch}
+                      disabled={saving}
+                      onCheckedChange={(value) =>
+                        void save(
+                          workspaces.map((w) =>
+                            w.id === active ? { ...w, autoFetch: value } : w,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                </div>
+                {monitor.errors[active] && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertTitle>Status unavailable</AlertTitle>
+                    <AlertDescription>
+                      {monitor.errors[active]} Previous results may be outdated.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {snapshot?.diagnostics.length ? (
+                  <Alert className="mb-4">
+                    <AlertTitle>Some folders could not be scanned</AlertTitle>
+                    <AlertDescription>
+                      {snapshot.diagnostics.join("\n")}
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+                <div className="rounded-lg border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/20 hover:bg-muted/20">
+                        <TableHead className="pl-4">Repository</TableHead>
+                        <TableHead>Branch</TableHead>
+                        <TableHead className="text-right">Changes</TableHead>
+                        <TableHead className="text-right">
+                          <span className="inline-flex gap-1 items-center">
+                            <ArrowUp className="size-3" />
+                            Push
+                          </span>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <span className="inline-flex gap-1 items-center">
+                            <ArrowDown className="size-3" />
+                            Pull
+                          </span>
+                        </TableHead>
+                        <TableHead className="pl-6">Next</TableHead>
+                        <TableHead className="w-12">
+                          <span className="sr-only">Open folder</span>
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {!snapshot
+                        ? Array.from({ length: 5 }, (_, i) => (
+                            <TableRow key={i}>
+                              {Array.from({ length: 7 }, (_, n) => (
+                                <TableCell key={n}>
+                                  <Skeleton className="h-4 w-full" />
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          ))
+                        : repositories.map((r) => (
+                            <TableRow key={r.path} className="group">
+                              <TableCell className="pl-4 py-2">
+                                <button
+                                  className="text-left font-medium hover:underline underline-offset-4 focus-visible:outline-ring rounded-sm"
+                                  onClick={() =>
+                                    setDetail({
+                                      workspaceId: active,
+                                      path: r.path,
+                                    })
+                                  }
+                                >
+                                  {r.name}
+                                </button>
+                                {r.error && (
+                                  <span className="sr-only">
+                                    {" "}
+                                    Status unavailable
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground text-xs">
+                                <span className="flex items-center gap-1.5">
+                                  <GitBranch className="size-3 shrink-0" />
+                                  {r.detached ? "Detached HEAD" : r.branch}
+                                </span>
+                              </TableCell>
+                              <TableCell
+                                className={`text-right font-mono tabular-nums ${r.changed ? "text-amber-400" : "text-muted-foreground"}`}
+                              >
+                                {r.error ? "?" : r.changed || "—"}
+                              </TableCell>
+                              <TableCell
+                                className={`text-right font-mono tabular-nums ${r.ahead ? "text-blue-400" : "text-muted-foreground"}`}
+                                title={
+                                  r.ahead === null
+                                    ? "No tracked upstream count"
+                                    : "Commits ahead of upstream"
+                                }
+                              >
+                                {r.ahead === null ? "?" : r.ahead || "—"}
+                              </TableCell>
+                              <TableCell
+                                className={`text-right font-mono tabular-nums ${r.behind ? "text-blue-400" : "text-muted-foreground"}`}
+                                title={
+                                  r.behind === null
+                                    ? "No tracked upstream count"
+                                    : "Commits behind upstream"
+                                }
+                              >
+                                {r.behind === null ? "?" : r.behind || "—"}
+                              </TableCell>
+                              <TableCell className="pl-6">
+                                <button
+                                  aria-label={`Details for ${r.name}`}
+                                  onClick={() =>
+                                    setDetail({
+                                      workspaceId: active,
+                                      path: r.path,
+                                    })
+                                  }
+                                >
+                                  <Status repo={r} />
+                                </button>
+                              </TableCell>
+                              <TableCell>
+                                <IconButton
+                                  label={`Open ${r.name} folder`}
+                                  onClick={() =>
+                                    void openRepository(active, r.path)
+                                  }
+                                >
+                                  <FolderOpen className="size-3.5 text-muted-foreground" />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                      {snapshot && !repositories.length && (
+                        <TableRow>
+                          <TableCell
+                            colSpan={7}
+                            className="h-40 text-center text-muted-foreground text-sm"
+                          >
+                            {!snapshot.repositories.length
+                              ? "No Git repositories found in this folder."
+                              : search
+                                ? "No repositories match your search."
+                                : "All repositories are up to date."}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    {monitor.busy[active] ? (
+                      <LoaderCircle className="size-3 animate-spin" />
+                    ) : (
+                      <Check className="size-3" />
+                    )}
+                    Status {timeLabel(snapshot?.scannedAt)}
+                    <span className="mx-1">·</span>Remotes{" "}
+                    {timeLabel(snapshot?.fetchedAt)}
+                  </span>
+                  <span>
+                    Click a repository for files <span className="mx-1">·</span>{" "}
+                    ? = no upstream count
+                  </span>
+                </div>
+              </TabsContent>
+            )}
+          </Tabs>
+        )}
+        <footer className="mt-auto px-6 py-3 border-t text-[11px] text-muted-foreground flex justify-between gap-3">
+          <span className="flex items-center gap-1.5">
+            <Activity className="size-3" />
+            {workspaces.length} workspace{workspaces.length === 1 ? "" : "s"}
+            {environment?.gitVersion && (
+              <span className="ml-1">· {environment.gitVersion}</span>
+            )}
+          </span>
+          <span>Local changes live · Remote counts update on fetch</span>
+        </footer>
+        <Sheet
+          open={Boolean(detail)}
+          onOpenChange={(open) => {
+            if (!open) setDetail(null);
+          }}
+        >
+          <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-lg flex flex-col">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                <FolderGit2 className="size-4" />
+                {selected?.name ?? "Repository details"}
+              </SheetTitle>
+              <SheetDescription className="font-mono text-xs break-all">
+                {selected?.path}
+              </SheetDescription>
+            </SheetHeader>
+            {selected && (
+              <div className="px-4 pb-6 overflow-y-auto flex-1 space-y-5">
+                <div className="flex items-center justify-between">
+                  <Status repo={selected} />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      void openRepository(detail!.workspaceId, selected.path)
+                    }
+                  >
+                    <FolderOpen />
+                    Open folder
+                  </Button>
+                </div>
+                <dl className="grid grid-cols-[80px_1fr] gap-y-2 text-xs">
+                  <dt className="text-muted-foreground">Branch</dt>
+                  <dd>
+                    {selected.detached ? "Detached HEAD" : selected.branch}
+                  </dd>
+                  <dt className="text-muted-foreground">Upstream</dt>
+                  <dd>{selected.upstream ?? "Not configured"}</dd>
+                  <dt className="text-muted-foreground">Changes</dt>
+                  <dd>
+                    {selected.staged} staged · {selected.unstaged} unstaged ·{" "}
+                    {selected.untracked} untracked
+                  </dd>
+                </dl>
+                {(selected.error || selected.fetchError) && (
+                  <Alert variant="destructive">
+                    <AlertTitle>
+                      {selected.error ? "Git status failed" : "Fetch failed"}
+                    </AlertTitle>
+                    <AlertDescription className="whitespace-pre-wrap break-words">
+                      {selected.error || selected.fetchError}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <div>
+                  <h3 className="text-xs font-medium mb-3">
+                    Changed files{" "}
+                    <span className="text-muted-foreground ml-1">
+                      {selected.changed}
+                    </span>
+                  </h3>
+                  {selected.files.length ? (
+                    <div className="rounded-md border divide-y">
+                      {selected.files.map((f, i) => (
+                        <div
+                          key={`${f.path}-${i}`}
+                          className="px-3 py-2.5 flex gap-3 items-start text-xs"
+                        >
+                          <code className="shrink-0 text-amber-400 whitespace-pre w-5">
+                            {f.status}
+                          </code>
+                          <span className="break-all font-mono">
+                            {f.originalPath && (
+                              <span className="text-muted-foreground">
+                                {f.originalPath} →{" "}
+                              </span>
+                            )}
+                            {f.path}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      {selected.error
+                        ? "File status is unavailable."
+                        : "No local changes."}
+                    </p>
+                  )}
+                  <p className="mt-3 text-[11px] text-muted-foreground">
+                    First column: staged · second: unstaged · ?? untracked
+                    <br />
+                    Counts follow Git, including .gitignore rules.
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Commit, push, and pull from your editor or terminal. Workspace
+                  Monitor shows what needs attention.
+                </p>
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+function Empty({
+  title,
+  description,
+  icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex-1 flex items-center justify-center px-6 py-24">
+      <div className="max-w-sm text-center">
+        <span className="inline-flex size-12 items-center justify-center rounded-xl border bg-muted/30 [&_svg]:size-5 text-muted-foreground mb-5">
+          {icon}
+        </span>
+        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+        <p className="text-sm text-muted-foreground mt-2 mb-6 leading-relaxed">
+          {description}
+        </p>
+        {children}
+      </div>
+    </div>
+  );
+}
