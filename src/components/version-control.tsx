@@ -14,7 +14,7 @@ export function fileGroups(files: ChangedFile[]) {
     unversioned: files.filter((f) => f.status === "??"),
   };
 }
-export function VersionControl({ workspaceId, path, refreshedAt, onChanged, blocked }: { workspaceId: string; path: string; refreshedAt?: number; onChanged: () => void; blocked: boolean }) {
+export function VersionControl({ workspaceId, path, refreshedAt, onChanged, blocked, onBusyChange }: { workspaceId: string; path: string; refreshedAt?: number; onChanged: () => void; blocked: boolean; onBusyChange?: (busy: boolean) => void }) {
   const [state, setState] = useState<Repository | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -53,13 +53,13 @@ export function VersionControl({ workspaceId, path, refreshedAt, onChanged, bloc
   async function action(kind: "stage" | "unstage" | "commit") {
     if (locked) return;
     const paths = [...new Set([...checked].filter((key) => kind === "unstage" ? key.startsWith("staged:") : !key.startsWith("staged:")).map((key) => key.slice(key.indexOf(":") + 1)))];
-    setBusy(true); setError(""); setNotice("");
+    setBusy(true); onBusyChange?.(true); setError(""); setNotice("");
     try {
       setNotice(await native.action(workspaceId, path, kind, kind === "commit" ? [] : paths, kind === "commit" ? message : null));
       if (kind === "commit") setMessage("");
       setChecked(new Set()); setPreview(null);
     } catch (e) { setNotice(""); setError(String(e)); }
-    finally { setBusy(false); setReload((n) => n + 1); onChanged(); }
+    finally { setBusy(false); onBusyChange?.(false); setReload((n) => n + 1); onChanged(); }
   }
   function toggle(keys: string[], value: boolean) {
     setChecked((old) => { const next = new Set(old); for (const key of keys) value ? next.add(key) : next.delete(key); return next; });

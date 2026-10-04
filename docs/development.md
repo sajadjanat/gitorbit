@@ -37,6 +37,24 @@ Use a fixture repository with commits, a staged change, an unstaged `tracked.txt
 
 Fresh clones should use the standard Tauri prerequisites. Packaged app users need neither Node.js nor Rust.
 
+## Signed releases and updates
+
+The main config contains the public update key and a HTTPS GitHub Releases endpoint. `src-tauri/tauri.release.conf.json` enables updater artifacts for release builds. Regular development builds do not need signing credentials.
+
+The `Publish signed desktop updates` workflow runs on version tags or manual dispatch. It builds Windows NSIS, macOS universal app/DMG, and Linux AppImage/DEB packages, signs updater artifacts, and merges platform entries into `latest.json`. Platform jobs run sequentially because they share that manifest. Only this workflow has release write permissions.
+
+Repository Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` hold the encrypted signing key and its password. Never commit these values. Keep the original key: changing it would prevent already-installed apps from accepting future releases.
+
+For the configured local Windows release account, the encrypted key is stored under `%LOCALAPPDATA%/WorkspaceMonitorReleaseKeys/updater.key`. Its password is stored as `password.dpapi`, protected by the account's Windows DPAPI credentials. Back up the signing credentials securely before replacing the account or machine; the DPAPI password file is account-bound.
+
+```powershell
+./scripts/signed-build.ps1 --bundles nsis
+```
+
+Bump the version consistently in npm, Cargo, and Tauri, run the checks, push the commit, and create its `vX.Y.Z` tag to publish subsequent updates. Do not mark a newer GitHub release as latest without its updater manifest and signed packages.
+
+To verify the published updater endpoint and signature without installing anything, set `WORKSPACE_MONITOR_SMOKE_UPDATE=1` along with the normal smoke root/report variables and run the debug app. It downloads the configured current release, verifies its signature and signed version, writes the report, and exits. This override is disabled in production builds.
+
 ## Documentation screenshots
 
 Run `npm run docs:preview`, start Vite, and open `/.dev/readme-preview.html`. Capture the actual interface using the sample workspaces. `?git=missing` shows onboarding. Generated preview files remain in `.dev/`, which is ignored by Git; committed images live in `docs/images/`.

@@ -61,6 +61,7 @@ import { useMonitor } from "@/lib/use-monitor";
 import { RepositoryHistory } from "@/components/repository-history";
 import { VersionControl } from "@/components/version-control";
 import { AppearanceButton } from "@/components/appearance";
+import { AppUpdates } from "@/components/app-updates";
 import "./index.css";
 import { version } from "../package.json";
 
@@ -139,13 +140,15 @@ export default function App() {
     tab?: string;
   } | null>(null);
   const [pulling, setPulling] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [repositoryBusy, setRepositoryBusy] = useState(false);
   const pullGuard = useRef(false);
   const [pullReport, setPullReport] = useState<{ title: string; total: number; results: { name: string; status: string; message: string }[] } | null>(null);
   const [showPullReport, setShowPullReport] = useState(false);
   const desktop = native.available();
   const monitor = useMonitor(
     workspaces,
-    ready && Boolean(environment?.gitVersion),
+    ready && Boolean(environment?.gitVersion) && !updating,
     live,
   );
   const workspace = workspaces.find((w) => w.id === active);
@@ -293,7 +296,7 @@ export default function App() {
   }
 
   async function pullRepositories(id: string, repos: Repository[], title: string) {
-    if (pullGuard.current || !repos.length) return;
+    if (pullGuard.current || repositoryBusy || updating || !repos.length) return;
     pullGuard.current = true; setPulling(true); setShowPullReport(true);
     setPullReport({ title: `Pull · ${title}`, total: repos.length, results: [] });
     try {
@@ -324,6 +327,7 @@ export default function App() {
             </Badge>
           </div>
           <div className="flex items-center gap-4">
+            <AppUpdates enabled={desktop} blocked={pulling || repositoryBusy || saving || installing || Object.values(monitor.busy).some(Boolean)} onInstalling={setUpdating} />
             <AppearanceButton />
             <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
               <span
@@ -557,7 +561,7 @@ export default function App() {
                       <ArrowDown className="size-4" />
                       Fetch remotes
                     </Button>
-                    <Button variant="outline" size="sm" disabled={pulling || !snapshot?.repositories.length} onClick={() => void pullRepositories(active, snapshot?.repositories ?? [], workspace.name)}>
+                    <Button variant="outline" size="sm" disabled={pulling || updating || !snapshot?.repositories.length} onClick={() => void pullRepositories(active, snapshot?.repositories ?? [], workspace.name)}>
                       <ArrowDown className="size-4" />{pulling ? "Pulling…" : "Pull all"}
                     </Button>
                     {pullReport && <Button variant="ghost" size="sm" onClick={() => setShowPullReport(true)}>Pull results</Button>}
@@ -800,7 +804,7 @@ export default function App() {
               <Tabs key={selected.path} defaultValue={detail.tab ?? "graph"} className="flex-1 min-h-0 gap-0">
                 <TabsList className="mx-5 mb-2 shrink-0 w-fit"><TabsTrigger value="graph">Git graph</TabsTrigger><TabsTrigger value="changes">Version Control <span className="ml-1 text-muted-foreground">{selected.changed}</span></TabsTrigger></TabsList>
                 <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory workspaceId={detail.workspaceId} path={selected.path} refreshedAt={monitor.snapshots[detail.workspaceId]?.scannedAt} /></TabsContent>
-                <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl workspaceId={detail.workspaceId} path={selected.path} refreshedAt={monitor.snapshots[detail.workspaceId]?.scannedAt} blocked={pulling} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
+                <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl workspaceId={detail.workspaceId} path={selected.path} refreshedAt={monitor.snapshots[detail.workspaceId]?.scannedAt} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
               </Tabs>
             </>}
           </DialogContent>

@@ -5,7 +5,7 @@
   <p>A compact desktop Git monitor built with Tauri, React, and shadcn/ui.</p>
   <p>
     <a href="https://github.com/sajadjanat/workspace-monitor/actions/workflows/build.yml"><img src="https://github.com/sajadjanat/workspace-monitor/actions/workflows/build.yml/badge.svg" alt="Desktop builds" /></a>
-    <a href="https://github.com/sajadjanat/workspace-monitor/releases"><img src="https://img.shields.io/badge/version-0.2.0-blue" alt="Version 0.2.0" /></a>
+    <a href="https://github.com/sajadjanat/workspace-monitor/releases"><img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version 0.3.0" /></a>
     <img src="https://img.shields.io/badge/Tauri-2-24c8db?logo=tauri&logoColor=white" alt="Tauri 2" />
     <img src="https://img.shields.io/badge/UI-shadcn%2Fui-18181b?logo=shadcnui&logoColor=white" alt="shadcn/ui" />
   </p>
@@ -38,6 +38,7 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 | **Version Control** | Inspect staged, unstaged, and unversioned files; review diffs, stage a selection, unstage, and commit. |
 | **Pull one or all** | Fast-forward one repository or every repository in the active workspace, with individual results. |
 | **Your appearance** | Light, dark, or system mode; Neutral, Violet, Ocean, and Forest palettes; a custom accent color. |
+| **In-app updates** | Automatically check for signed releases, show release notes, and install with **Update & restart**. |
 | **Remote updates** | Fetch manually or opt into a fetch every 60 seconds for each workspace. |
 | **Git onboarding** | Check Git at startup and offer an OS installer or the official download page if it is missing. |
 | **Native folder access** | Choose workspaces with the system folder picker and open repositories in your file manager. |
@@ -128,6 +129,16 @@ Pull uses `git pull --ff-only --no-rebase --no-edit`. Repositories with local ch
 ### Git history
 
 The graph follows actual commit parents in topological order, including merge connections and local branch, remote, and tag labels. Choose **All branches** or **Current HEAD**. History starts with 200 commits; load more in batches up to 5,000. Shallow clones show only locally available history. Fetch first to update remote branch labels.
+
+## App updates
+
+Starting with **0.3.0**, the app checks for new releases at startup and every six hours while running. Select **Updates** in the header to check manually. When a newer release is available, the button shows its version; open it to review the notes and choose **Update & restart**. Download progress and errors are shown. Installation waits for active Git operations to finish and preserves saved workspaces and appearance settings.
+
+Only packages signed with the configured release key are accepted. The signature also binds the advertised version to the package, and older versions are not offered. Checks use the public `latest.json` asset on the latest GitHub release. The signed release workflow publishes installers, signatures, and that manifest.
+
+Users of **0.1.0 or 0.2.0 must install 0.3.0 once manually** to enable future in-app updates. On Windows, the updater uses the NSIS installer; a portable installation is upgraded to the normal per-user installation. Linux updates use the AppImage, and macOS uses the application bundle. Platform entries appear as their signed release builds complete.
+
+![Available update with release notes and an install button](docs/images/app-update.png)
 
 ## Development
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Workspace Monitor",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "ir.sepehra.workspace-monitor",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -34,5 +34,17 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      },
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkwNzI5QjA0MTVBMDA4MjEKUldRaENLQVZCSnR5a01JUkZ2VE82UGxzTEU2M0tFbGtUck5SSXgvU1EwMVRNblRtWTNqV2luOVgK",
+      "endpoints": [
+        "https://github.com/sajadjanat/workspace-monitor/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

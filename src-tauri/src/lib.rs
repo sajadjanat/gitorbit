@@ -314,10 +314,14 @@ async fn repository_action(
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default().plugin(tauri_plugin_opener::init()).plugin(tauri_plugin_dialog::init()).manage(AppState::default())
+    tauri::Builder::default().plugin(tauri_plugin_opener::init()).plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).plugin(tauri_plugin_process::init()).manage(AppState::default())
         .on_page_load(|webview, payload| {
             #[cfg(debug_assertions)]
             if std::env::var_os("WORKSPACE_MONITOR_SMOKE_ROOT").is_some() && payload.event() == tauri::webview::PageLoadEvent::Finished {
+                if std::env::var_os("WORKSPACE_MONITOR_SMOKE_UPDATE").is_some() {
+                    let _ = webview.eval(r#"window.__TAURI_INTERNALS__.invoke('smoke_update').then(report => window.__TAURI_INTERNALS__.invoke('smoke_report', {report}), error => window.__TAURI_INTERNALS__.invoke('smoke_report', {report: {ok: false, error: String(error)}}))"#);
+                    return;
+                }
                 let _ = webview.eval(r#"(() => {
                     let attempts = 0, phase = 0, names = [], graphRows = 0;
                     const finish = (ok) => {
@@ -351,8 +355,46 @@ pub fn run() {
             }
             #[cfg(not(debug_assertions))] let _ = (webview, payload);
         })
-        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_changes, repository_diff, repository_action, smoke_report])
+        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_changes, repository_diff, repository_action, smoke_report, smoke_update])
         .run(tauri::generate_context!()).expect("error while running Workspace Monitor");
+}
+
+#[tauri::command]
+async fn smoke_update(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    #[cfg(debug_assertions)]
+    {
+        use tauri_plugin_updater::UpdaterExt;
+        if std::env::var_os("WORKSPACE_MONITOR_SMOKE_ROOT").is_none()
+            || std::env::var_os("WORKSPACE_MONITOR_SMOKE_UPDATE").is_none()
+        {
+            return Err("Update smoke testing is disabled.".into());
+        }
+        // Download the current release to verify transport and signatures without
+        // installing it or allowing downgrades in a production build.
+        let updater = app
+            .updater_builder()
+            .timeout(std::time::Duration::from_secs(45))
+            .version_comparator(|_, _| true)
+            .build()
+            .map_err(|e| e.to_string())?;
+        let update = updater
+            .check()
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or("No update manifest found.")?;
+        let bytes = update
+            .download(|_, _| {}, || {})
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(
+            serde_json::json!({"ok": !bytes.is_empty(), "version": update.version, "signatureVerified": true, "downloadedBytes": bytes.len(), "installed": false}),
+        )
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = app;
+        Err("Update smoke testing is unavailable in release builds.".into())
+    }
 }
 
 #[tauri::command]
