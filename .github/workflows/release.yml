@@ -6,7 +6,8 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: signed-release-${{ github.ref }}
+  # Tag and manual runs must not update the shared release manifest concurrently.
+  group: signed-desktop-release
   cancel-in-progress: false
 jobs:
   release:
