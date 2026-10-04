@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppUpdates } from "./app-updates";
 import { updater, type AppUpdate } from "@/lib/updater";
-vi.mock("@/lib/updater", () => ({ updater: { check: vi.fn(), restart: vi.fn() } }));
+vi.mock("@/lib/updater", () => ({ updater: { check: vi.fn(), restart: vi.fn(), connection: vi.fn(), saveConnection: vi.fn() } }));
 const update = (): AppUpdate => ({ version: "0.4.0", body: "Faster Git scans", close: vi.fn().mockResolvedValue(undefined), download: vi.fn().mockResolvedValue(undefined), install: vi.fn().mockResolvedValue(undefined) });
-beforeEach(() => { vi.resetAllMocks(); vi.mocked(updater.check).mockResolvedValue(null); vi.mocked(updater.restart).mockResolvedValue(undefined); });
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(updater.check).mockResolvedValue(null); vi.mocked(updater.restart).mockResolvedValue(undefined); vi.mocked(updater.connection).mockResolvedValue("system"); vi.mocked(updater.saveConnection).mockResolvedValue(undefined); });
 afterEach(() => vi.useRealTimers());
 describe("app updates", () => {
   it("checks at startup and every six hours, and offers manual checking", async () => {
@@ -67,5 +67,16 @@ describe("app updates", () => {
     await waitFor(() => expect(updater.check).toHaveBeenCalledOnce());
     view.unmount(); await act(async () => finish(item));
     expect(item.close).toHaveBeenCalledOnce();
+  });
+  it("saves the update connection, closes old resources and checks again", async () => {
+    const item = update(); vi.mocked(updater.check).mockResolvedValueOnce(item).mockResolvedValue(null);
+    vi.mocked(updater.saveConnection).mockImplementation(async () => { vi.mocked(updater.connection).mockResolvedValue("direct"); });
+    const user = userEvent.setup(); render(<AppUpdates enabled blocked={false} onInstalling={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "Update available: 0.4.0" }));
+    await user.click(screen.getByRole("button", { name: "Direct connection" }));
+    await waitFor(() => expect(updater.check).toHaveBeenCalledTimes(2));
+    expect(updater.saveConnection).toHaveBeenCalledWith("direct");
+    expect(item.close).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Direct connection" })).toHaveAttribute("aria-pressed", "true");
   });
 });

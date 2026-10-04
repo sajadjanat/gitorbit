@@ -5,7 +5,7 @@
   <p>A compact desktop Git monitor built with Tauri, React, and shadcn/ui.</p>
   <p>
     <a href="https://github.com/sajadjanat/workspace-monitor/actions/workflows/build.yml"><img src="https://github.com/sajadjanat/workspace-monitor/actions/workflows/build.yml/badge.svg" alt="Desktop builds" /></a>
-    <a href="https://github.com/sajadjanat/workspace-monitor/releases"><img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version 0.3.0" /></a>
+    <a href="https://github.com/sajadjanat/workspace-monitor/releases"><img src="https://img.shields.io/badge/version-0.3.1-blue" alt="Version 0.3.1" /></a>
     <img src="https://img.shields.io/badge/Tauri-2-24c8db?logo=tauri&logoColor=white" alt="Tauri 2" />
     <img src="https://img.shields.io/badge/UI-shadcn%2Fui-18181b?logo=shadcnui&logoColor=white" alt="shadcn/ui" />
   </p>
@@ -82,7 +82,7 @@ You do not need Node.js or Rust to run the packaged app. Git is required for mon
 | macOS | Build target in the CI workflow; no local runtime verification yet. |
 | Linux | Build target in the CI workflow; no local runtime verification yet. |
 
-The [desktop build workflow](https://github.com/sajadjanat/workspace-monitor/actions/workflows/build.yml) builds each platform on its own runner. Successful runs expose installers as downloadable artifacts. Release signing and macOS notarization are not configured yet.
+The [desktop build workflow](https://github.com/sajadjanat/workspace-monitor/actions/workflows/build.yml) builds each platform on its own runner. Successful runs expose installers as downloadable artifacts. The [signed release workflow](https://github.com/sajadjanat/workspace-monitor/actions/workflows/release.yml) signs packages for in-app updates. Operating-system code signing and macOS notarization are not configured yet.
 
 ## Quick start
 
@@ -136,7 +136,9 @@ Starting with **0.3.0**, the app checks for new releases at startup and every si
 
 Only packages signed with the configured release key are accepted. The signature also binds the advertised version to the package, and older versions are not offered. Checks use the public `latest.json` asset on the latest GitHub release. The signed release workflow publishes installers, signatures, and that manifest.
 
-Users of **0.1.0 or 0.2.0 must install 0.3.0 once manually** to enable future in-app updates. On Windows, the updater uses the NSIS installer; a portable installation is upgraded to the normal per-user installation. Linux updates use the AppImage, and macOS uses the application bundle. Platform entries appear as their signed release builds complete.
+Users of **0.1.0 or 0.2.0 must install 0.3.1 once manually** to enable future in-app updates. On Windows, the updater uses the NSIS installer; a portable installation is upgraded to the normal per-user installation. Linux updates use the AppImage, and macOS uses the application bundle. Platform entries appear as their signed release builds complete.
+
+**Update connection** defaults to your system proxy settings. If a configured proxy prevents checks or downloads, select **Direct connection** to use direct HTTPS for updates. The choice is saved separately from workspace and appearance preferences. Switching mode clears the previous result and checks again; downloads use the connection that found the release.
 
 ![Available update with release notes and an install button](docs/images/app-update.png)
 

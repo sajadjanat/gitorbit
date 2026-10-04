@@ -41,6 +41,8 @@ Fresh clones should use the standard Tauri prerequisites. Packaged app users nee
 
 The main config contains the public update key and a HTTPS GitHub Releases endpoint. `src-tauri/tauri.release.conf.json` enables updater artifacts for release builds. Regular development builds do not need signing credentials.
 
+The `check_app_update` command constructs the official updater using the saved system or direct connection, then registers the update in the webview resource table. Downloads, signature checks, installation and cleanup use the official plugin. Connection mode is saved in `updates.json` in the app configuration directory. TLS and signatures remain verified.
+
 The `Publish signed desktop updates` workflow runs on version tags or manual dispatch. It builds Windows NSIS, macOS universal app/DMG, and Linux AppImage/DEB packages, signs updater artifacts, and merges platform entries into `latest.json`. Platform jobs run sequentially because they share that manifest. Only this workflow has release write permissions.
 
 Repository Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` hold the encrypted signing key and its password. Never commit these values. Keep the original key: changing it would prevent already-installed apps from accepting future releases.

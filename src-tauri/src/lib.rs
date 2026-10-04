@@ -312,6 +312,63 @@ async fn repository_action(
     let _ = app.emit("workspace-invalidated", &workspace_id);
     result
 }
+
+fn update_connection_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("updates.json"))
+}
+#[tauri::command]
+fn update_connection(app: tauri::AppHandle) -> Result<String, String> {
+    let path = update_connection_path(&app)?;
+    if !path.exists() {
+        return Ok("system".into());
+    }
+    let mode: String = serde_json::from_slice(&fs::read(path).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    if !["system", "direct"].contains(&mode.as_str()) {
+        return Err("Choose a valid update connection.".into());
+    }
+    Ok(mode)
+}
+#[tauri::command]
+fn save_update_connection(app: tauri::AppHandle, mode: String) -> Result<(), String> {
+    if !["system", "direct"].contains(&mode.as_str()) {
+        return Err("Choose a valid update connection.".into());
+    }
+    let path = update_connection_path(&app)?;
+    fs::create_dir_all(
+        path.parent()
+            .ok_or("Update settings folder is unavailable.")?,
+    )
+    .map_err(|e| e.to_string())?;
+    fs::write(path, serde_json::to_vec(&mode).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())
+}
+#[tauri::command]
+async fn check_app_update(
+    app: tauri::AppHandle,
+    webview: tauri::Webview,
+) -> Result<Option<serde_json::Value>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let mut builder = webview
+        .updater_builder()
+        .timeout(std::time::Duration::from_secs(20));
+    if update_connection(app)? == "direct" {
+        builder = builder.no_proxy();
+    }
+    let updater = builder.build().map_err(|e| e.to_string())?;
+    let update = updater.check().await.map_err(|e| e.to_string())?;
+    Ok(update.map(|update| {
+        let metadata = serde_json::json!({"currentVersion": update.current_version, "version": update.version, "body": update.body, "date": update.raw_json.get("pub_date"), "rawJson": update.raw_json});
+        let rid = webview.resources_table().add(update);
+        let mut metadata = metadata;
+        metadata["rid"] = serde_json::json!(rid);
+        metadata
+    }))
+}
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default().plugin(tauri_plugin_opener::init()).plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).plugin(tauri_plugin_process::init()).manage(AppState::default())
@@ -355,7 +412,7 @@ pub fn run() {
             }
             #[cfg(not(debug_assertions))] let _ = (webview, payload);
         })
-        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_changes, repository_diff, repository_action, smoke_report, smoke_update])
+        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_changes, repository_diff, repository_action, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
         .run(tauri::generate_context!()).expect("error while running Workspace Monitor");
 }
 
@@ -371,21 +428,23 @@ async fn smoke_update(app: tauri::AppHandle) -> Result<serde_json::Value, String
         }
         // Download the current release to verify transport and signatures without
         // installing it or allowing downgrades in a production build.
-        let updater = app
+        let mut builder = app
             .updater_builder()
             .timeout(std::time::Duration::from_secs(45))
-            .version_comparator(|_, _| true)
-            .build()
-            .map_err(|e| e.to_string())?;
+            .version_comparator(|_, _| true);
+        if update_connection(app.clone())? == "direct" {
+            builder = builder.no_proxy();
+        }
+        let updater = builder.build().map_err(|e| e.to_string())?;
         let update = updater
             .check()
             .await
-            .map_err(|e| e.to_string())?
+            .map_err(|e| format!("{e:?}"))?
             .ok_or("No update manifest found.")?;
         let bytes = update
             .download(|_, _| {}, || {})
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("{e:?}"))?;
         Ok(
             serde_json::json!({"ok": !bytes.is_empty(), "version": update.version, "signatureVerified": true, "downloadedBytes": bytes.len(), "installed": false}),
         )

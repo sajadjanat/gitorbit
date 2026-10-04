@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-vi.mock("./lib/updater", () => ({ updater: { check: vi.fn().mockResolvedValue(null), restart: vi.fn() } }));
+vi.mock("./lib/updater", () => ({ updater: { check: vi.fn().mockResolvedValue(null), restart: vi.fn(), connection: vi.fn().mockResolvedValue("system"), saveConnection: vi.fn() } }));
 import {
   native,
   nextStep,

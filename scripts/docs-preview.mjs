@@ -78,7 +78,9 @@ window.__TAURI_INTERNALS__ = {
  transformCallback: () => ++next,
  invoke: async (command,args) => {
   if(command==='check_environment') return data.environment;
-  if(command==='plugin:updater|check') return new URLSearchParams(location.search).get('update') === 'available' ? { rid: 99, currentVersion: '0.3.0', version: '0.4.0', body: 'A new Workspace Monitor release is ready.\\n\\n• Faster repository scans\\n• Improved Git graph navigation', rawJson: {} } : null;
+  if(command==='update_connection') return 'system';
+  if(command==='save_update_connection') return null;
+  if(command==='check_app_update') return new URLSearchParams(location.search).get('update') === 'available' ? { rid: 99, currentVersion: '0.3.1', version: '0.4.0', body: 'A new Workspace Monitor release is ready.\\n\\n• Faster repository scans\\n• Improved Git graph navigation', rawJson: {} } : null;
   if(command==='load_workspaces') return roots;
   if(command==='scan_workspace') return data.snapshots[args.workspaceId];
   if(command==='repository_history') return data.history;

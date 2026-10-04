@@ -3,7 +3,7 @@ import { Download, LoaderCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { updater, type AppUpdate } from "@/lib/updater";
+import { updater, type AppUpdate, type UpdateConnection } from "@/lib/updater";
 import { version } from "../../package.json";
 
 const CHECK_INTERVAL = 6 * 60 * 60 * 1000;
@@ -16,6 +16,7 @@ export function AppUpdates({ enabled, blocked, onInstalling }: { enabled: boolea
   const [error, setError] = useState("");
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
   const [progress, setProgress] = useState({ bytes: 0, total: 0 });
+  const [connection, setConnection] = useState<UpdateConnection>("system");
   const active = useRef(true);
   const busy = useRef(false);
   const heldUpdate = useRef<AppUpdate | null>(null);
@@ -27,6 +28,8 @@ export function AppUpdates({ enabled, blocked, onInstalling }: { enabled: boolea
     busy.current = true; lastAttempt.current = Date.now();
     setPhase("checking"); setError("");
     try {
+      const mode = await updater.connection();
+      if (active.current) setConnection(mode);
       const result = await updater.check();
       if (!active.current) { await result?.close().catch(() => {}); return; }
       const old = heldUpdate.current;
@@ -55,6 +58,20 @@ export function AppUpdates({ enabled, blocked, onInstalling }: { enabled: boolea
       void old?.close().catch(() => {});
     };
   }, [enabled, checkNow]);
+
+  async function changeConnection(mode: UpdateConnection) {
+    if (busy.current || !enabled) return;
+    busy.current = true; setPhase("checking"); setError("");
+    let saved = false;
+    try {
+      await updater.saveConnection(mode); setConnection(mode);
+      const old = heldUpdate.current; heldUpdate.current = null;
+      setAvailable(null); setCheckedAt(null);
+      await old?.close().catch(() => {}); saved = true;
+    } catch (e) { setError(String(e)); }
+    finally { busy.current = false; setPhase("idle"); }
+    if (saved) void checkNow();
+  }
 
   async function install() {
     const update = heldUpdate.current;
@@ -102,6 +119,9 @@ export function AppUpdates({ enabled, blocked, onInstalling }: { enabled: boolea
           <span>{checkedAt ? `Last checked ${new Date(checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Not checked yet"}</span>
           <Button variant="outline" size="sm" disabled={!enabled || phase !== "idle"} onClick={() => void checkNow()}><RefreshCw className="size-3.5" />Check again</Button>
         </div>
+        <fieldset className="border-t pt-3"><legend className="text-xs font-medium">Update connection</legend><div className="grid grid-cols-2 gap-2 mt-2">
+          {(["system", "direct"] as const).map((mode) => <Button key={mode} variant={connection === mode ? "default" : "outline"} size="sm" disabled={!enabled || phase !== "idle"} aria-pressed={connection === mode} onClick={() => void changeConnection(mode)}>{mode === "system" ? "System proxy" : "Direct connection"}</Button>)}
+        </div><p className="text-[11px] text-muted-foreground mt-2">Applies only to update checks and downloads.</p></fieldset>
       </DialogContent>
     </Dialog>
   </>;
