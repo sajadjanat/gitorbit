@@ -37,6 +37,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "linux": {
+      "deb": {
+        "provides": ["workspace-monitor"],
+        "conflicts": ["workspace-monitor"],
+        "replaces": ["workspace-monitor"]
+      }
+    },
     "windows": {
       "wix": {
         "upgradeCode": "eb66e790-1edf-5566-bdb9-57a7d205d9cf"

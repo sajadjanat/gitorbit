@@ -10,11 +10,27 @@ concurrency:
   group: signed-desktop-release
   cancel-in-progress: false
 jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      release_id: ${{ steps.draft.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare release draft
+        id: draft
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/prepare-release.mjs
+      - run: node --test scripts/finalize-release.test.mjs
   release:
+    needs: prepare
     strategy:
       fail-fast: false
-      # Each platform merges its entry into latest.json; serialize that shared asset.
-      max-parallel: 1
+      # Native jobs upload packages independently; the final job creates latest.json.
+      max-parallel: 3
       matrix:
         include:
           - os: windows-latest
@@ -34,6 +50,11 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: release-${{ runner.os }}
+          cache-on-failure: true
       - name: Install macOS cross architecture targets
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
@@ -48,9 +69,6 @@ jobs:
           cargo build --release --locked --manifest-path src-tauri/Cargo.toml --bin monitor-cli --target x86_64-apple-darwin
           mkdir -p src-tauri/target/universal-apple-darwin/release
           lipo -create src-tauri/target/aarch64-apple-darwin/release/monitor-cli src-tauri/target/x86_64-apple-darwin/release/monitor-cli -output src-tauri/target/universal-apple-darwin/release/monitor-cli
-      - name: Read release notes
-        id: notes
-        run: node -e "const fs=require('fs'); const v=require('./package.json').version; fs.appendFileSync(process.env.GITHUB_OUTPUT,'body<<GITORBIT_NOTES\n'+fs.readFileSync('docs/releases/'+v+'.md','utf8')+'\nGITORBIT_NOTES\n')"
       - name: Build and publish signed packages
         uses: tauri-apps/tauri-action@v0
         env:
@@ -58,16 +76,17 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: v__VERSION__
-          releaseName: GitOrbit __VERSION__
-          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseId: ${{ needs.prepare.outputs.release_id }}
           releaseDraft: true
-          includeUpdaterJson: true
+          includeUpdaterJson: false
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
       - name: Verify Windows installation migration
         if: runner.os == 'Windows'
         run: ./scripts/test-installer-migration.ps1
+      - name: Verify legacy Linux DEB replacement
+        if: runner.os == 'Linux'
+        run: bash scripts/test-deb-migration.sh
   publish:
     needs: release
     runs-on: ubuntu-24.04
@@ -79,4 +98,4 @@ jobs:
       - name: Verify all signed platform entries and publish release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/finalize-release.mjs
+        run: node scripts/finalize-release.mjs --assemble
