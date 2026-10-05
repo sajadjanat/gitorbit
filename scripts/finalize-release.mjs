@@ -25,7 +25,11 @@ async function request(url, {binary = false, method = 'GET', body} = {}) {
   return binary ? response.text() : response.json();
 }
 
-const release = await request(`${api}/releases/tags/v${version}`);
+// The tag lookup can return 404 for an unpublished draft. The authenticated
+// releases list includes drafts and works before and after publication.
+const releases = await request(`${api}/releases?per_page=100`);
+const release = releases.find(item => item.tag_name === `v${version}`);
+if (!release) throw new Error(`Release v${version} was not found.`);
 const assets = await request(`${api}/releases/${release.id}/assets?per_page=100`);
 const manifestAsset = assets.find(asset => asset.name === 'latest.json');
 if (!manifestAsset) throw new Error('latest.json is missing.');
