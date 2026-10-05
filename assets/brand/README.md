@@ -5,12 +5,12 @@ GitOrbit monitors Git repositories across workspaces. The identity uses a tilted
 ## Assets
 
 - [Logotype](gitorbit-wordmark-v2.png): the application header and README wordmark.
-- [App icon](gitorbit-app-icon-v3.png): the transparent source for native PNG, ICO and ICNS icons.
-- [Transparent icon notes and prompt](gitorbit-icon-v3.md).
+- [App icon](gitorbit-app-icon-v4.png): the transparent source for native PNG, ICO and ICNS icons.
+- [Larger icon notes and prompt](gitorbit-icon-v4.md).
 - [Design direction, prompts and review](gitorbit-v2.md).
 - [Design review packets](gitorbit-v2-design.json).
 
-Regenerate native icons with `npx tauri icon assets/brand/gitorbit-app-icon-v3.png`.
+Regenerate native icons with `npx tauri icon assets/brand/gitorbit-app-icon-v4.png`.
 
 The product is GitOrbit, the npm package is gitorbit, and the repository is https://github.com/sajadjanat/gitorbit. The application identifier, Rust binary name, signing key and saved preference keys remain stable for existing installations. The updater points to the renamed repository. Windows NSIS installers migrate verified Workspace Monitor installations in place; the former WiX upgrade code is pinned.
 

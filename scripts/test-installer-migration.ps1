@@ -121,7 +121,7 @@ Section
   ; Exercise the real shortcut update on isolated files, never user shortcuts.
   StrCpy $INSTDIR "@FRESH@"
   SetOutPath "$INSTDIR"
-  File /oname=gitorbit-icon-v3.ico "@ICON@"
+  File /oname=gitorbit-icon-v4.ico "@ICON@"
   File /oname=workspace-monitor.exe "@PAYLOAD@"
   CreateShortcut "@FRESH@\GitOrbit.lnk" "$INSTDIR\${MAINBINARYNAME}.exe" "--example" "" 0
   CreateShortcut "@FRESH@\Other.lnk" "@LEGACY@\${MAINBINARYNAME}.exe" "--other" "" 0
@@ -129,7 +129,7 @@ Section
   !insertmacro GitOrbitSetShortcutIcon "@FRESH@\Other.lnk"
   !insertmacro NSIS_HOOK_POSTINSTALL
   ReadRegStr $0 SHCTX "${UNINSTKEY}" "DisplayIcon"
-  ${If} $0 != "$INSTDIR\gitorbit-icon-v3.ico,0"
+  ${If} $0 != "$INSTDIR\gitorbit-icon-v4.ico,0"
     IntOp $TestFailures $TestFailures + 1
     FileWrite $9 "FAIL: installed program icon not updated$\r$\n"
   ${Else}
@@ -157,10 +157,10 @@ if ((Get-FileHash -LiteralPath $testState).Hash -ne $testStateHash) { throw 'Leg
 Write-Output 'PASS: legacy workspace state preserved'
 $testShell = New-Object -ComObject WScript.Shell
 $testShortcut = $testShell.CreateShortcut((Join-Path $testFresh 'GitOrbit.lnk'))
-if ($testShortcut.IconLocation -ne "$(Join-Path $testFresh 'gitorbit-icon-v3.ico'),0" -or $testShortcut.Arguments -ne '--example' -or $testShortcut.TargetPath -ne (Join-Path $testFresh 'workspace-monitor.exe')) { throw 'Shortcut icon or preserved properties are incorrect.' }
+if ($testShortcut.IconLocation -ne "$(Join-Path $testFresh 'gitorbit-icon-v4.ico'),0" -or $testShortcut.Arguments -ne '--example' -or $testShortcut.TargetPath -ne (Join-Path $testFresh 'workspace-monitor.exe')) { throw 'Shortcut icon or preserved properties are incorrect.' }
 Write-Output 'PASS: matching shortcut icon updated with target and arguments preserved'
 $testOther = $testShell.CreateShortcut((Join-Path $testFresh 'Other.lnk'))
 if ($testOther.IconLocation -ne ',0' -or $testOther.Arguments -ne '--other') { throw 'Unrelated shortcut was modified.' }
 Write-Output 'PASS: unrelated shortcut preserved'
-if ((Get-FileHash -LiteralPath (Join-Path $testFresh 'gitorbit-icon-v3.ico')).Hash -ne (Get-FileHash -LiteralPath (Join-Path $testRepo 'src-tauri/icons/icon.ico')).Hash) { throw 'Standalone ICO payload differs from native app icon.' }
+if ((Get-FileHash -LiteralPath (Join-Path $testFresh 'gitorbit-icon-v4.ico')).Hash -ne (Get-FileHash -LiteralPath (Join-Path $testRepo 'src-tauri/icons/icon.ico')).Hash) { throw 'Standalone ICO payload differs from native app icon.' }
 Write-Output 'PASS: standalone ICO payload matches native app icon'

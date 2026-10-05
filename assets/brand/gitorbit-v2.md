@@ -5,14 +5,14 @@ The user's reference replaces the previous monochrome direction. The O is a blac
 ## Deliverables
 
 - `gitorbit-wordmark-v2.png`: horizontal GitOrbit wordmark with shaped ivory letterforms, angled terminals and a single black-hole O.
-- `gitorbit-app-icon-v2.png`: earlier standalone symbol on an ink-black field; replaced for app use by the [transparent v3 icon](gitorbit-icon-v3.md).
-- `../../public/gitorbit-icon-v3.png`: active transparent favicon asset.
+- `gitorbit-app-icon-v2.png`: earlier standalone symbol on an ink-black field; replaced for app use by the [larger transparent v4 icon](gitorbit-icon-v4.md).
+- `../../public/gitorbit-icon-v4.png`: active transparent favicon asset.
 - `../../public/gitorbit-wordmark-v2.png`: original bitmap used by the application header logotype.
-- `../../src-tauri/icons/`: current desktop PNG sizes, ICO and ICNS generated from the transparent v3 source.
+- `../../src-tauri/icons/`: current desktop PNG sizes, ICO and ICNS generated from the transparent v4 source.
 
 These are raster originals, not editable vector masters. Generated originals remain in the Codex image directory. Previous concepts are retained locally outside the published brand assets.
 
-The compact application header uses `src/components/git-orbit-wordmark.tsx`. The lettering is drawn with SVG paths matching the approved geometric forms, avoiding pixel-derived masks and their ivory fringes on light backgrounds. The illustrated O retains the approved bitmap, confined to its own silhouette; its exterior field is transparent and its central shadow remains opaque. Letters use black in light mode and ivory in dark mode. The header adds 8px horizontal and 4px vertical padding around a 144px-wide mark. Both modes were visually checked in the application preview. Current interface captures are in `docs/images/gitorbit-*.jpg`. The README hero artwork retains its original background; the native icon uses the transparent v3 asset.
+The compact application header uses `src/components/git-orbit-wordmark.tsx`. The lettering is drawn with SVG paths matching the approved geometric forms, avoiding pixel-derived masks and their ivory fringes on light backgrounds. The illustrated O retains the approved bitmap, confined to its own silhouette; its exterior field is transparent and its central shadow remains opaque. Letters use black in light mode and ivory in dark mode. The header adds 8px horizontal and 4px vertical padding around a 144px-wide mark. Both modes were visually checked in the application preview. Current interface captures are in `docs/images/gitorbit-*.jpg`. The README hero artwork retains its original background; the native icon uses the transparent v4 asset.
 
 ## Craft and review
 

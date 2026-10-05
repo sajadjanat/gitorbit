@@ -58,7 +58,7 @@ Var GitOrbitLegacyInstall
       ${IUnknown::QueryInterface} $0 '("${IID_IPersistFile}",.r1)'
       ${If} $1 P<> 0
         ${IPersistFile::Load} $1 '("${shortcut}", ${STGM_READWRITE})'
-        ${IShellLink::SetIconLocation} $0 '(w "$INSTDIR\gitorbit-icon-v3.ico", 0)'
+        ${IShellLink::SetIconLocation} $0 '(w "$INSTDIR\gitorbit-icon-v4.ico", 0)'
         ${IPersistFile::Save} $1 '("${shortcut}",1)'
         ${IUnknown::Release} $1 ""
       ${EndIf}
@@ -77,7 +77,7 @@ Var GitOrbitLegacyInstall
     !insertmacro GitOrbitRenameShortcut "$SMPROGRAMS\Workspace Monitor.lnk" "$SMPROGRAMS\${PRODUCTNAME}.lnk"
     DeleteRegKey SHCTX "${GITORBIT_LEGACY_UNINSTKEY}"
   ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\gitorbit-icon-v3.ico"
+  ${If} ${FileExists} "$INSTDIR\gitorbit-icon-v4.ico"
     !insertmacro GitOrbitSetShortcutIcon "$DESKTOP\${PRODUCTNAME}.lnk"
     !insertmacro GitOrbitSetShortcutIcon "$SMPROGRAMS\${PRODUCTNAME}.lnk"
     !insertmacro GitOrbitSetShortcutIcon "$APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\${PRODUCTNAME}.lnk"
@@ -85,7 +85,7 @@ Var GitOrbitLegacyInstall
     !if "${STARTMENUFOLDER}" != ""
       !insertmacro GitOrbitSetShortcutIcon "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
     !endif
-    WriteRegStr SHCTX "${UNINSTKEY}" "DisplayIcon" "$INSTDIR\gitorbit-icon-v3.ico,0"
+    WriteRegStr SHCTX "${UNINSTKEY}" "DisplayIcon" "$INSTDIR\gitorbit-icon-v4.ico,0"
     ; Tell Explorer that shortcut/icon associations were updated.
     System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   ${EndIf}

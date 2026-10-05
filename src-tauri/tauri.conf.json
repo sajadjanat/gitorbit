@@ -28,7 +28,7 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "icons/icon.ico": "gitorbit-icon-v3.ico"
+      "icons/icon.ico": "gitorbit-icon-v4.ico"
     },
     "icon": [
       "icons/32x32.png",
