@@ -70,18 +70,20 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 
 ## Download
 
-**Windows x64** installer and portable builds are available in [Releases](https://github.com/sajadjanat/gitorbit/releases/latest).
+Download **GitOrbit for Windows, macOS or Linux** from [Releases](https://github.com/sajadjanat/gitorbit/releases/latest).
 
 - **Installer:** run the `x64-setup.exe` file. It can provision WebView2 if the runtime is missing.
 - **Portable:** extract the portable ZIP and run the included app executable. Earlier releases use `Workspace Monitor.exe`; GitOrbit packages use the new branding. Keep `WebView2Loader.dll` beside the executable.
+- **macOS:** open the universal DMG and copy GitOrbit to Applications. The same package supports Intel and Apple Silicon.
+- **Linux:** use the AppImage or install the DEB with your package manager. The DEB replaces the former `workspace-monitor` package during an upgrade.
 
 You do not need Node.js or Rust to run the packaged app. Git is required for monitoring; the app helps you install it if necessary.
 
 | Platform | Current availability |
 | --- | --- |
-| Windows x64 | Packaged and verified locally. |
-| macOS | Build target in the CI workflow; no local runtime verification yet. |
-| Linux | Build target in the CI workflow; no local runtime verification yet. |
+| Windows x64 | NSIS installer and portable ZIP; legacy installation migration verified. |
+| macOS | Universal DMG and signed app update archive. |
+| Linux x64 | AppImage and DEB; replacement of the legacy DEB verified. |
 
 The [desktop build workflow](https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml) builds each platform on its own runner. Successful runs expose installers as downloadable artifacts. The [signed release workflow](https://github.com/sajadjanat/gitorbit/actions/workflows/release.yml) signs packages for in-app updates. Operating-system code signing and macOS notarization are not configured yet.
 
