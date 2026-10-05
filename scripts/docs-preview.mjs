@@ -66,7 +66,7 @@ data.history = {
 await mkdir('.dev', { recursive: true })
 await writeFile('.dev/readme-data.json', JSON.stringify(data, null, 2))
 await writeFile('.dev/readme-preview.html', `<!doctype html>
-<html lang="en" class="dark"><head><meta charset="utf-8"><title>Workspace Monitor · sample workspaces</title><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+<html lang="en" class="dark"><head><meta charset="utf-8"><title>GitOrbit · sample workspaces</title><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 const data = await (await fetch('/.dev/readme-data.json')).json();
@@ -80,7 +80,7 @@ window.__TAURI_INTERNALS__ = {
   if(command==='check_environment') return data.environment;
   if(command==='update_connection') return 'system';
   if(command==='save_update_connection') return null;
-  if(command==='check_app_update') return new URLSearchParams(location.search).get('update') === 'available' ? { rid: 99, currentVersion: '0.3.1', version: '0.4.0', body: 'A new Workspace Monitor release is ready.\\n\\n• Faster repository scans\\n• Improved Git graph navigation', rawJson: {} } : null;
+  if(command==='check_app_update') return new URLSearchParams(location.search).get('update') === 'available' ? { rid: 99, currentVersion: '0.3.1', version: '0.4.0', body: 'A new GitOrbit release is ready.\\n\\n• Faster repository scans\\n• Improved Git graph navigation', rawJson: {} } : null;
   if(command==='load_workspaces') return roots;
   if(command==='scan_workspace') return data.snapshots[args.workspaceId];
   if(command==='repository_history') return data.history;

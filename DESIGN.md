@@ -1,4 +1,4 @@
-# Workspace Monitor
+# GitOrbit
 
 Use actual shadcn/ui components, React, Radix, and Tailwind tokens. Support light, dark, and system modes; Neutral, Violet, Ocean, and Forest palettes; a saved custom accent. Apply theme tokens at the document root so dialogs share the theme. Geist text, Geist Mono for counts and paths, and Lucide icons. English UI throughout.
 

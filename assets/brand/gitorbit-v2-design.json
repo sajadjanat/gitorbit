@@ -1,0 +1,132 @@
+[
+  {
+    "packet_id": "PKT-gitorbit-v2-brand",
+    "from": "brand-intelligence",
+    "to": "typography-director",
+    "job": "GitOrbit reference-based identity redesign",
+    "decisions": [
+      {
+        "key": "brand_state",
+        "value": {
+          "name": "GitOrbit",
+          "symbol": "black-hole O integral to wordmark",
+          "palette": {
+            "field": "#08090c",
+            "lettering": "warm ivory",
+            "horizon": "ivory to amber",
+            "disk": "orange to ember red"
+          },
+          "clearspace": "Keep disk tips separated from adjacent letters; preserve external margins; individual icon has about 14 percent horizontal padding."
+        },
+        "rationale": "Derived from the user's chosen name and supplied tilted black-hole reference.",
+        "priority": 2
+      }
+    ],
+    "evidence": [
+      "User chose GitOrbit and requested a black-hole O.",
+      "User supplied a tilted warm-colored black-hole reference with projecting disk ends."
+    ],
+    "confidence": 1,
+    "hard_vetoes": [],
+    "soft_warnings": [],
+    "unresolved": [],
+    "recommended_next": []
+  },
+  {
+    "packet_id": "PKT-gitorbit-v2-type",
+    "from": "typography-director",
+    "to": "prompt-compiler",
+    "job": "GitOrbit reference-based identity redesign",
+    "decisions": [
+      {
+        "key": "typography_state",
+        "value": {
+          "exact_copy": "GitOrbit",
+          "case": "capital G and O",
+          "layout": "one line; symbol substitutes capital O",
+          "letterforms": "geometric grotesk with open counters, soft square dots and angled terminals",
+          "scale": "O slightly exceeds cap height",
+          "protected_zone": "Disk ends may extend past O but must not cover t or r"
+        },
+        "rationale": "Derived from the user's chosen name and supplied tilted black-hole reference.",
+        "priority": 2
+      }
+    ],
+    "evidence": [
+      "Inspected rendered wordmark character by character: G-i-t-O-r-b-i-t."
+    ],
+    "confidence": 1,
+    "hard_vetoes": [],
+    "soft_warnings": [],
+    "unresolved": [],
+    "recommended_next": []
+  },
+  {
+    "packet_id": "PKT-gitorbit-v2-generation",
+    "from": "prompt-compiler",
+    "to": "visual-qa",
+    "job": "GitOrbit reference-based identity redesign",
+    "decisions": [
+      {
+        "key": "generation_state",
+        "value": {
+          "operations": [
+            "generate wordmark from supplied reference",
+            "generate standalone symbol from wordmark",
+            "bounded icon size and centering edit"
+          ],
+          "provider": "built-in imagegen",
+          "prompts": [
+            "gitorbit-v2.md"
+          ],
+          "edit_contract": "EDT-gitorbit-icon-padding-v2",
+          "lint": "All three prompts passed; prompt lint self-tests 4/4 passed"
+        },
+        "rationale": "Derived from the user's chosen name and supplied tilted black-hole reference.",
+        "priority": 2
+      }
+    ],
+    "evidence": [
+      "Generated outputs returned and inspected.",
+      "Icon padding contract status ready with execution_allowed true."
+    ],
+    "confidence": 1,
+    "hard_vetoes": [],
+    "soft_warnings": [],
+    "unresolved": [],
+    "recommended_next": []
+  },
+  {
+    "packet_id": "PKT-gitorbit-v2-review",
+    "from": "visual-qa",
+    "to": "brand-intelligence",
+    "job": "GitOrbit reference-based identity redesign",
+    "decisions": [
+      {
+        "key": "review_state",
+        "value": {
+          "brief": "Warm tilted black hole with extensions is visible; no starfield.",
+          "copy": "Exact GitOrbit spelling; one O symbol; no repeated normal O.",
+          "type": "Consistent baseline and curved letterforms; disk ends remain separated from t and r.",
+          "icon": "128 and 32 pixel native PNGs inspected; black center and diagonal band remain visible.",
+          "crop": "Both diagonal tips inside square field.",
+          "preservation": "Padding edit maintained the ring motif and palette; imagegen changed the canvas resolution so no pixel identity claim is made.",
+          "status": "accepted for workspace integration"
+        },
+        "rationale": "Derived from the user's chosen name and supplied tilted black-hole reference.",
+        "priority": 2
+      }
+    ],
+    "evidence": [
+      "Wordmark inspected at full size.",
+      "Native 128x128.png and 32x32.png viewed after Tauri icon generation.",
+      "Frontend production build passed."
+    ],
+    "confidence": 0.9,
+    "hard_vetoes": [],
+    "soft_warnings": [],
+    "unresolved": [],
+    "recommended_next": []
+  }
+]
+

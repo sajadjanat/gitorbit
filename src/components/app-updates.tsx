@@ -105,7 +105,7 @@ export function AppUpdates({ enabled, blocked, onInstalling }: { enabled: boolea
         <DialogHeader><DialogTitle>{available ? "Update available" : "App updates"}</DialogTitle><DialogDescription>Current version: {version}. Updates are checked at startup and every six hours.</DialogDescription></DialogHeader>
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         {available ? <div className="space-y-3">
-          <p className="text-sm font-medium">Workspace Monitor {available.version}</p>
+          <p className="text-sm font-medium">GitOrbit {available.version}</p>
           {available.body && <div className="max-h-52 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground rounded-md border p-3">{available.body}</div>}
           <p className="text-xs text-muted-foreground">Download and install the signed release, then restart. Your workspaces and appearance settings are kept.</p>
           {updating && <div className="space-y-2" role="status">

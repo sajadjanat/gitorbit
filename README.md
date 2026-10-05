@@ -1,11 +1,11 @@
 <div align="center">
-  <img src="assets/icon.svg" alt="Workspace Monitor icon" width="80" />
-  <h1>Workspace Monitor</h1>
+  <img src="assets/brand/gitorbit-wordmark-v2.png" alt="GitOrbit — tilted black-hole O logotype" width="520" />
+  <h1>GitOrbit</h1>
   <p><strong>See what needs a commit, a push, or a pull — across all your workspaces.</strong></p>
   <p>A compact desktop Git monitor built with Tauri, React, and shadcn/ui.</p>
   <p>
-    <a href="https://github.com/sajadjanat/workspace-monitor/actions/workflows/build.yml"><img src="https://github.com/sajadjanat/workspace-monitor/actions/workflows/build.yml/badge.svg" alt="Desktop builds" /></a>
-    <a href="https://github.com/sajadjanat/workspace-monitor/releases"><img src="https://img.shields.io/badge/version-0.3.2-blue" alt="Version 0.3.2" /></a>
+    <a href="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml"><img src="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml/badge.svg" alt="Desktop builds" /></a>
+    <a href="https://github.com/sajadjanat/gitorbit/releases"><img src="https://img.shields.io/badge/version-0.3.2-blue" alt="Version 0.3.2" /></a>
     <img src="https://img.shields.io/badge/Tauri-2-24c8db?logo=tauri&logoColor=white" alt="Tauri 2" />
     <img src="https://img.shields.io/badge/UI-shadcn%2Fui-18181b?logo=shadcnui&logoColor=white" alt="shadcn/ui" />
   </p>
@@ -17,13 +17,13 @@
   </p>
 </div>
 
-![Workspace Monitor showing multiple workspace tabs and Git status](docs/images/workspace-overview.png)
+![Workspace tabs and Git status](docs/images/workspace-overview.png)
 
-*The actual interface, shown with example workspaces. Screenshots contain no personal project data.*
+*The actual interface, shown with example workspaces. Some screenshots show the previous Workspace Monitor branding. Screenshots contain no personal project data.*
 
-## Why Workspace Monitor?
+## Why GitOrbit?
 
-When your projects live in several folders, checking each repository takes time. Workspace Monitor gathers their Git status in one small table: local changes, commits ahead or behind, and the next step that needs your attention.
+When your projects live in several folders, checking each repository takes time. GitOrbit gathers their Git status in one small table: local changes, commits ahead or behind, and the next step that needs your attention.
 
 Keep several workspaces open as tabs. They all continue monitoring in the background, even when you are viewing another tab. The default **Needs attention** filter keeps the daily view short; **All repositories** includes clean projects.
 
@@ -70,10 +70,10 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 
 ## Download
 
-**Windows x64** installer and portable builds are available in [Releases](https://github.com/sajadjanat/workspace-monitor/releases/latest).
+**Windows x64** installer and portable builds are available in [Releases](https://github.com/sajadjanat/gitorbit/releases/latest).
 
 - **Installer:** run the `x64-setup.exe` file. It can provision WebView2 if the runtime is missing.
-- **Portable:** extract the `windows-x64_portable.zip` file, then run `Workspace Monitor.exe`. Keep `WebView2Loader.dll` beside it.
+- **Portable:** extract the portable ZIP and run the included app executable. Earlier releases use `Workspace Monitor.exe`; GitOrbit packages use the new branding. Keep `WebView2Loader.dll` beside the executable.
 
 You do not need Node.js or Rust to run the packaged app. Git is required for monitoring; the app helps you install it if necessary.
 
@@ -83,11 +83,11 @@ You do not need Node.js or Rust to run the packaged app. Git is required for mon
 | macOS | Build target in the CI workflow; no local runtime verification yet. |
 | Linux | Build target in the CI workflow; no local runtime verification yet. |
 
-The [desktop build workflow](https://github.com/sajadjanat/workspace-monitor/actions/workflows/build.yml) builds each platform on its own runner. Successful runs expose installers as downloadable artifacts. The [signed release workflow](https://github.com/sajadjanat/workspace-monitor/actions/workflows/release.yml) signs packages for in-app updates. Operating-system code signing and macOS notarization are not configured yet.
+The [desktop build workflow](https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml) builds each platform on its own runner. Successful runs expose installers as downloadable artifacts. The [signed release workflow](https://github.com/sajadjanat/gitorbit/actions/workflows/release.yml) signs packages for in-app updates. Operating-system code signing and macOS notarization are not configured yet.
 
 ## Quick start
 
-1. Open Workspace Monitor. If Git is missing, select **Install Git** or **Download Git**, then **Check again**.
+1. Open GitOrbit. If Git is missing, select **Install Git** or **Download Git**, then **Check again**.
 2. Select **Add workspace** and choose a folder containing your Git repositories. You can choose multiple folders at once.
 3. Read the **Next** column. Click a repository for its **Git graph**; switch to **Version Control** for files, diffs, and commits.
 4. Select **Fetch remotes** for current upstream counts. Enable **Auto fetch** if you want those counts refreshed periodically.
@@ -152,8 +152,8 @@ Users of **0.1.0 or 0.2.0 must install 0.3.1 once manually** to enable future in
 Install **Node.js 22+**, **Rust stable**, and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your operating system. Install Git to run the real Git integration tests.
 
 ```sh
-git clone https://github.com/sajadjanat/workspace-monitor.git
-cd workspace-monitor
+git clone https://github.com/sajadjanat/gitorbit.git
+cd gitorbit
 npm ci
 npm run tauri dev
 ```
@@ -224,7 +224,7 @@ The Rust scanner discovers repositories and reads `git status --porcelain=v2`. I
 
 ## Useful notes
 
-**Why are `.idea` files still listed?** Git ignores only untracked files. If those files are already tracked, add the ignore rule and untrack them in your repository. Workspace Monitor follows Git's result.
+**Why are `.idea` files still listed?** Git ignores only untracked files. If those files are already tracked, add the ignore rule and untrack them in your repository. GitOrbit follows Git's result.
 
 **Why does an untracked folder count as one change?** Overview counts follow Git's `--untracked-files=normal` mode. Version Control expands untracked folders into individual files. Staged and unstaged counts may overlap when the same file has both kinds of edits.
 
@@ -238,7 +238,7 @@ The Rust scanner discovers repositories and reads `git status --porcelain=v2`. I
 
 ## Contributing
 
-[Report a bug or propose a feature](https://github.com/sajadjanat/workspace-monitor/issues). For code changes, describe the problem, keep the compact interface in mind, and run the relevant checks before opening a pull request. UI copy stays in English.
+[Report a bug or propose a feature](https://github.com/sajadjanat/gitorbit/issues). For code changes, describe the problem, keep the compact interface in mind, and run the relevant checks before opening a pull request. UI copy stays in English.
 
 ---
 

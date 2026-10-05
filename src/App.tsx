@@ -380,16 +380,17 @@ export default function App() {
     <TooltipProvider delayDuration={300}>
       <div className="min-h-screen bg-background text-foreground flex flex-col">
         <header className="h-14 shrink-0 border-b flex items-center justify-between px-6 gap-4">
-          <div className="flex items-center gap-3">
-            <span className="flex size-8 items-center justify-center rounded-lg border bg-muted/40">
-              <FolderGit2 className="size-4" />
-            </span>
-            <h1 className="text-sm font-semibold tracking-tight">
-              Workspace Monitor
+          <div className="flex items-center gap-3 min-w-0">
+            <h1 className="relative h-10 w-44 sm:w-48 shrink-0 overflow-hidden rounded-md bg-[#08090c]">
+              <img
+                src="/gitorbit-wordmark-v2.png"
+                alt="GitOrbit"
+                className="absolute left-1/2 top-[calc(50%+4px)] w-52 sm:w-56 max-w-none -translate-x-1/2 -translate-y-1/2"
+              />
             </h1>
             <Badge
               variant="outline"
-              className="hidden sm:inline-flex text-[10px] font-normal text-muted-foreground"
+              className="hidden lg:inline-flex text-[10px] font-normal text-muted-foreground"
             >
               Local Git
             </Badge>
@@ -451,7 +452,7 @@ export default function App() {
         {!desktop ? (
           <Empty
             title="Open the desktop app"
-            description="Workspace Monitor needs the desktop app to access local folders and Git."
+            description="GitOrbit needs the desktop app to access local folders and Git."
             icon={<FolderGit2 />}
           />
         ) : !ready ? (

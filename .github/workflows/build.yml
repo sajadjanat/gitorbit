@@ -28,8 +28,11 @@ jobs:
       - run: npm run build
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build
+      - name: Verify Windows branding migration
+        if: runner.os == 'Windows'
+        run: ./scripts/test-installer-migration.ps1
       - uses: actions/upload-artifact@v4
         with:
-          name: workspace-monitor-${{ runner.os }}
+          name: gitorbit-${{ runner.os }}
           path: src-tauri/target/release/bundle/
           if-no-files-found: error

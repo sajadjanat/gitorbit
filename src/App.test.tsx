@@ -101,7 +101,7 @@ beforeEach(() => {
   vi.mocked(native.diff).mockResolvedValue({ text: "@@ -1 +1 @@\n-old\n+new", truncated: false });
   vi.mocked(native.action).mockResolvedValue("Updated.");
 });
-describe("Workspace Monitor", () => {
+describe("GitOrbit", () => {
   it("monitors inactive tabs and opens live file details", async () => {
     const user = userEvent.setup();
     render(<App />);

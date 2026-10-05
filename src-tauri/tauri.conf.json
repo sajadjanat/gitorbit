@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Workspace Monitor",
+  "productName": "GitOrbit",
   "version": "0.3.2",
   "identifier": "ir.sepehra.workspace-monitor",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Workspace Monitor",
+        "title": "GitOrbit",
         "width": 1180,
         "height": 780,
         "minWidth": 640,
@@ -33,7 +33,17 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "wix": {
+        "upgradeCode": "eb66e790-1edf-5566-bdb9-57a7d205d9cf"
+      },
+      "nsis": {
+        "installerHooks": "windows/gitorbit-migration.nsh",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
+      }
+    }
   },
   "plugins": {
     "updater": {
@@ -43,7 +53,7 @@
       },
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkwNzI5QjA0MTVBMDA4MjEKUldRaENLQVZCSnR5a01JUkZ2VE82UGxzTEU2M0tFbGtUck5SSXgvU1EwMVRNblRtWTNqV2luOVgK",
       "endpoints": [
-        "https://github.com/sajadjanat/workspace-monitor/releases/latest/download/latest.json"
+        "https://github.com/sajadjanat/gitorbit/releases/latest/download/latest.json"
       ]
     }
   }
