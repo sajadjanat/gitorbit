@@ -12,7 +12,7 @@ The user's reference replaces the previous monochrome direction. The O is a blac
 
 These are raster originals, not editable vector masters. Generated originals remain in the Codex image directory. Previous concepts are retained locally outside the published brand assets.
 
-The compact application header uses `src/components/git-orbit-wordmark.tsx` to render the original bitmap through SVG alpha filters. The exterior field is transparent, the central black-hole shadow remains opaque, and the letter silhouettes use black in light mode and ivory in dark mode. The header adds 8px horizontal and 4px vertical padding around a 144px-wide mark. Both modes were visually checked in the application preview; the README artwork and native icon retain their original backgrounds.
+The compact application header uses `src/components/git-orbit-wordmark.tsx`. The lettering is drawn with SVG paths matching the approved geometric forms, avoiding pixel-derived masks and their ivory fringes on light backgrounds. The illustrated O retains the approved bitmap, confined to its own silhouette; its exterior field is transparent and its central shadow remains opaque. Letters use black in light mode and ivory in dark mode. The header adds 8px horizontal and 4px vertical padding around a 144px-wide mark. Both modes were visually checked in the application preview. Current interface captures are in `docs/images/gitorbit-*.jpg`; the README hero artwork and native icon retain their original backgrounds.
 
 ## Craft and review
 

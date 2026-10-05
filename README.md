@@ -17,9 +17,9 @@
   </p>
 </div>
 
-![Workspace tabs and Git status](docs/images/workspace-overview.png)
+![GitOrbit workspace tabs and Git status in dark mode](docs/images/gitorbit-overview-dark.jpg)
 
-*The actual interface, shown with example workspaces. Some screenshots show the previous Workspace Monitor branding. Screenshots contain no personal project data.*
+*The current GitOrbit interface, captured with example workspaces. The screenshots show the updated header logotype and contain no personal project data.*
 
 ## Why GitOrbit?
 
@@ -50,21 +50,21 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 
 ### Follow branches and merges
 
-![Git history with colored branch lanes and merge connections](docs/images/git-graph.png)
+![Git history with colored branch lanes and merge connections](docs/images/gitorbit-git-graph.jpg)
 
 ### Review, stage, and commit
 
-![Version Control with file groups and a unified diff](docs/images/version-control.png)
+![Version Control with file groups, a side-by-side diff, and the commit form](docs/images/gitorbit-version-control.jpg)
 
 ### A lighter workspace
 
-![Workspace overview in the Ocean light theme](docs/images/light-theme.png)
+![GitOrbit with crisp black lettering and a transparent logotype in the Ocean light theme](docs/images/gitorbit-overview-light.jpg)
 
-![Appearance preferences with modes, palettes, and custom accent](docs/images/appearance.png)
+![Appearance preferences with modes, palettes, and custom accent](docs/images/gitorbit-appearance.jpg)
 
 ### A clear first step when Git is missing
 
-![Git installation screen](docs/images/git-setup.jpg)
+![GitOrbit Git installation screen](docs/images/gitorbit-git-setup.jpg)
 
 </details>
 
@@ -145,7 +145,9 @@ Users of **0.1.0 or 0.2.0 must install 0.3.1 once manually** to enable future in
 
 **Update connection** defaults to your system proxy settings. If a configured proxy prevents checks or downloads, select **Direct connection** to use direct HTTPS for updates. The choice is saved separately from workspace and appearance preferences. Switching mode clears the previous result and checks again; downloads use the connection that found the release.
 
-![Available update with release notes and an install button](docs/images/app-update.png)
+![GitOrbit update dialog with release notes and an install button](docs/images/gitorbit-app-update.jpg)
+
+*The update screenshot uses example release metadata to demonstrate the update flow.*
 
 ## Development
 
