@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { native, type Snapshot, type Workspace } from "./native";
 
+const FILE_EVENT_DEBOUNCE_MS = 750;
+const MIN_FILE_EVENT_REFRESH_INTERVAL_MS = 3000;
+const SAFETY_SCAN_INTERVAL_MS = 60_000;
+
 export function useMonitor(
   workspaces: Workspace[],
   enabled: boolean,
@@ -76,19 +80,25 @@ export function useMonitor(
   useEffect(() => {
     if (!enabled || !live) return;
     const timers = new Map<string, ReturnType<typeof setTimeout>>();
+    const lastEventRefresh = new Map<string, number>();
     let cancelled = false;
     let unlisten: (() => void) | undefined;
+    const scheduleEventRefresh = (id: string, delay = FILE_EVENT_DEBOUNCE_MS) => {
+      clearTimeout(timers.get(id));
+      timers.set(id, setTimeout(() => {
+        const remaining = MIN_FILE_EVENT_REFRESH_INTERVAL_MS -
+          (Date.now() - (lastEventRefresh.get(id) ?? 0));
+        if (remaining > 0) {
+          scheduleEventRefresh(id, remaining);
+          return;
+        }
+        timers.delete(id);
+        lastEventRefresh.set(id, Date.now());
+        request(id);
+      }, delay));
+    };
     void native
-      .onChange((id) => {
-        clearTimeout(timers.get(id));
-        timers.set(
-          id,
-          setTimeout(() => {
-            timers.delete(id);
-            request(id);
-          }, 350),
-        );
-      })
+      .onChange((id) => scheduleEventRefresh(id))
       .then((stop) => {
         if (cancelled) stop();
         else unlisten = stop;
@@ -99,7 +109,7 @@ export function useMonitor(
         refs.current.workspaces.forEach((w) => {
           if (!running.current.has(w.id)) request(w.id);
         }),
-      15_000,
+      SAFETY_SCAN_INTERVAL_MS,
     );
     const remoteTimer = setInterval(
       () =>

@@ -36,6 +36,7 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 | **Clear next steps** | Colored labels identify Commit, Push, Pull, Resolve, Sync branch, and upstream problems. |
 | **Git graph** | Click a repository to see real commit history, branch lanes, merges, HEAD, branches, and tags. |
 | **Version Control** | Inspect staged, unstaged, and unversioned files; review diffs, stage a selection, unstage, and commit. |
+| **Push preview** | Review commits ahead of the tracked branch and the files in each commit, then push explicitly. |
 | **Pull one or all** | Fast-forward one repository or every repository in the active workspace, with individual results. |
 | **Your appearance** | Light, dark, or system mode; Neutral, Violet, Ocean, and Forest palettes; a custom accent color. |
 | **In-app updates** | Automatically check for signed releases, show release notes, and install with **Update & restart**. |
@@ -100,7 +101,7 @@ The [desktop build workflow](https://github.com/sajadjanat/workspace-monitor/act
 | **Changes** | Changed Git entries, including staged, unstaged, and untracked paths. |
 | **Push** | Commits ahead of the tracked upstream. |
 | **Pull** | Commits behind the tracked upstream. |
-| **Next** | The suggested action. Stage, commit, and pull in the app; push from your editor or terminal. |
+| **Next** | The suggested action. Open any row for details; stage, commit, pull, and review or push outgoing commits in the app. |
 | **—** | Zero changes or zero commits. |
 | **?** | No reliable upstream count is available. Inspect the repository details. |
 
@@ -108,11 +109,11 @@ Conflicts, detached HEAD, missing upstreams, and command failures remain visible
 
 ### Local and remote timing
 
-- **Local changes:** refresh after 350 ms of file-event inactivity, plus a safety scan every 15 seconds.
+- **Local changes:** refresh after 750 ms of file-event inactivity, at most once every 3 seconds, plus a safety scan every 60 seconds.
 - **Remote counts:** reflect local tracking refs until you fetch. Opt-in automatic fetch runs approximately every 60 seconds while Live is enabled.
 - **Paused:** automatic monitoring stops; manual refresh and fetch remain available.
 
-Fetch updates Git's remote refs. Stage, unstage, commit, and pull happen only after an explicit click. The app never pushes automatically.
+Fetch updates Git's remote refs. Stage, unstage, commit, pull, and push happen only after an explicit click. Before pushing, review the outgoing commits and changed file names in the repository's **Push** tab. The app never pushes automatically or force-pushes.
 
 ### Version Control
 
@@ -125,6 +126,10 @@ Select checkboxes, then choose **Stage selected** or **Unstage selected**. Enter
 **Pull all** includes every repository in the active workspace, including clean repositories hidden by search or the attention filter. It processes repositories in sequence and shows individual results; one failure does not stop the remaining repositories.
 
 Pull uses `git pull --ff-only --no-rebase --no-edit`. Repositories with local changes (including untracked files), detached HEAD, or no upstream are skipped. Divergent history fails without merging or rebasing. Local files are never automatically stashed, discarded, or force-reset. Resolve the reported issue and retry. Git uses your existing remote credentials.
+
+### Push commits
+
+When a repository is ahead of its tracked remote branch, select the row to open its **Push** tab. The preview lists outgoing commits and the files changed by the selected commit. **Push** sends the previewed branch tip to that tracked remote branch; local uncommitted changes are not included. If the branch changes after the preview, refresh the list before pushing. A remote branch that is ahead must be fetched and pulled first.
 
 ### Git history
 

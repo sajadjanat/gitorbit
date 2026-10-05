@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const dateFormat = new Intl.DateTimeFormat("en-GB", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 
-export function RepositoryHistory({ workspaceId, path, refreshedAt }: { workspaceId: string; path: string; refreshedAt?: number }) {
+export function RepositoryHistory({ workspaceId, path }: { workspaceId: string; path: string }) {
   const [limit, setLimit] = useState(200);
   const [scope, setScope] = useState<"all" | "head">("all");
   const [refresh, setRefresh] = useState(0);
@@ -24,7 +24,7 @@ export function RepositoryHistory({ workspaceId, path, refreshedAt }: { workspac
       (error) => { if (!cancelled) setState((old) => ({ key, data: old.key === key ? old.data : undefined, loading: false, error: String(error) })); },
     );
     return () => { cancelled = true; };
-  }, [key, workspaceId, path, limit, scope, refreshedAt, refresh]);
+  }, [key, workspaceId, path, limit, scope, refresh]);
   const data = state.key === key ? state.data : undefined;
   const loading = state.key !== key || state.loading;
   const graph = useMemo(() => layoutGraph(data?.commits ?? []), [data]);

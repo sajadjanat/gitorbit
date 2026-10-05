@@ -2,6 +2,8 @@ use crate::git::{capture, git_command, parse_status, Repository};
 use serde::Serialize;
 use std::{collections::HashSet, fs, io::Read, path::Path, time::Duration};
 
+const MAX_OUTGOING_COMMITS: usize = 200;
+
 fn run(git: &Path, repo: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     let mut command = git_command(git, repo);
     command.args(args);
@@ -27,6 +29,331 @@ pub struct Diff {
     pub text: String,
     pub truncated: bool,
 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Outgoing {
+    pub head: String,
+    pub upstream_head: String,
+    pub source_branch: String,
+    pub remote: String,
+    pub destination_branch: String,
+    pub total_commits: usize,
+    pub has_more: bool,
+    pub commits: Vec<OutgoingCommit>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutgoingCommit {
+    pub hash: String,
+    pub subject: String,
+    pub author: String,
+    pub timestamp: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitFile {
+    pub path: String,
+    pub original_path: Option<String>,
+    pub status: String,
+}
+
+fn resolve_remote_target(
+    git: &Path,
+    repo: &Path,
+    upstream: &str,
+) -> Result<(String, String), String> {
+    let remotes = run(git, repo, &["remote"])?;
+    String::from_utf8_lossy(&remotes)
+        .lines()
+        .filter_map(|remote| {
+            upstream
+                .strip_prefix(&format!("refs/remotes/{remote}/"))
+                .map(|branch| (remote.to_owned(), branch.to_owned()))
+        })
+        .max_by_key(|(remote, _)| remote.len())
+        .ok_or_else(|| "The tracked upstream is not a configured remote branch.".into())
+}
+
+fn read_upstream(
+    git: &Path,
+    repo: &Path,
+) -> Result<(String, String, String, String, String, String), String> {
+    let head = String::from_utf8_lossy(&run(git, repo, &["rev-parse", "--verify", "HEAD"])?)
+        .trim()
+        .to_owned();
+    let source_branch = String::from_utf8_lossy(&run(
+        git,
+        repo,
+        &["symbolic-ref", "--quiet", "--short", "HEAD"],
+    )?)
+    .trim()
+    .to_owned();
+    let upstream = String::from_utf8_lossy(&run(
+        git,
+        repo,
+        &["rev-parse", "--symbolic-full-name", "@{upstream}"],
+    )?)
+    .trim()
+    .to_owned();
+    let upstream_commit = format!("{upstream}^{{commit}}");
+    let upstream_head = String::from_utf8_lossy(&run(
+        git,
+        repo,
+        &["rev-parse", "--verify", upstream_commit.as_str()],
+    )?)
+    .trim()
+    .to_owned();
+    let (remote, destination_branch) = resolve_remote_target(git, repo, &upstream)?;
+    Ok((
+        head,
+        upstream_head,
+        source_branch,
+        upstream,
+        remote,
+        destination_branch,
+    ))
+}
+
+pub fn outgoing(git: &Path, repo: &Path) -> Result<Outgoing, String> {
+    let (head, upstream_head, source_branch, upstream, remote, destination_branch) =
+        read_upstream(git, repo)?;
+    let range = format!("{upstream}..HEAD");
+    let count = String::from_utf8_lossy(&run(
+        git,
+        repo,
+        &["rev-list", "--count", range.as_str()],
+    )?)
+    .trim()
+    .parse::<usize>()
+    .map_err(|_| "Git returned an invalid outgoing commit count.".to_string())?;
+    let commits = if count == 0 {
+        Vec::new()
+    } else {
+        let max_count = format!("--max-count={MAX_OUTGOING_COMMITS}");
+        let format = "--format=%x1e%H%x00%an%x00%at%x00%s";
+        let log = run(
+            git,
+            repo,
+            &[
+                "log",
+                "--topo-order",
+                "--no-color",
+                "--encoding=UTF-8",
+                max_count.as_str(),
+                format,
+                range.as_str(),
+            ],
+        )?;
+        parse_outgoing_log(&log)?
+    };
+    Ok(Outgoing {
+        head,
+        upstream_head,
+        source_branch,
+        remote,
+        destination_branch,
+        total_commits: count,
+        has_more: count > commits.len(),
+        commits,
+    })
+}
+
+fn parse_outgoing_log(bytes: &[u8]) -> Result<Vec<OutgoingCommit>, String> {
+    bytes
+        .split(|byte| *byte == 0x1e)
+        .filter(|record| !record.is_empty())
+        .map(|record| {
+            let fields: Vec<_> = record.split(|byte| *byte == 0).collect();
+            if fields.len() != 4 {
+                return Err("Git returned an incomplete outgoing commit.".into());
+            }
+            let timestamp = String::from_utf8_lossy(fields[2])
+                .trim()
+                .parse::<i64>()
+                .map_err(|_| "Git returned an invalid outgoing commit date.".to_string())?;
+            Ok(OutgoingCommit {
+                hash: String::from_utf8_lossy(fields[0]).trim().to_owned(),
+                author: String::from_utf8_lossy(fields[1]).into_owned(),
+                timestamp,
+                subject: String::from_utf8_lossy(fields[3])
+                    .trim_end_matches(['\n', '\r'])
+                    .to_owned(),
+            })
+        })
+        .collect()
+}
+
+pub fn outgoing_commit_files(
+    git: &Path,
+    repo: &Path,
+    commit_hash: &str,
+) -> Result<Vec<CommitFile>, String> {
+    if !matches!(commit_hash.len(), 40 | 64)
+        || !commit_hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err("Choose a valid commit from the push list.".into());
+    }
+    let (_, _, _, upstream, _, _) = read_upstream(git, repo)?;
+    let range = format!("{upstream}..HEAD");
+    let outgoing = run(git, repo, &["rev-list", range.as_str()])?;
+    if !String::from_utf8_lossy(&outgoing)
+        .lines()
+        .any(|hash| hash == commit_hash)
+    {
+        return Err("This commit is no longer in the outgoing list. Refresh and try again.".into());
+    }
+    let parent_line = String::from_utf8_lossy(&run(
+        git,
+        repo,
+        &["rev-list", "--parents", "-n", "1", commit_hash],
+    )?)
+    .trim()
+    .to_owned();
+    let mut parts = parent_line.split_whitespace();
+    let _ = parts.next();
+    let first_parent = parts.next();
+    let name_status = if let Some(parent) = first_parent {
+        run(
+            git,
+            repo,
+            &[
+                "diff-tree",
+                "--no-commit-id",
+                "--name-status",
+                "-r",
+                "-z",
+                "--find-renames",
+                parent,
+                commit_hash,
+            ],
+        )?
+    } else {
+        run(
+            git,
+            repo,
+            &[
+                "diff-tree",
+                "--root",
+                "--no-commit-id",
+                "--name-status",
+                "-r",
+                "-z",
+                "--find-renames",
+                commit_hash,
+            ],
+        )?
+    };
+    parse_name_status(&name_status)
+}
+
+fn parse_name_status(bytes: &[u8]) -> Result<Vec<CommitFile>, String> {
+    let fields: Vec<_> = bytes.split(|byte| *byte == 0).collect();
+    let mut files = Vec::new();
+    let mut index = 0;
+    while index < fields.len() {
+        let status = String::from_utf8_lossy(fields[index])
+            .trim_matches(['\n', '\r'])
+            .to_owned();
+        index += 1;
+        if status.is_empty() {
+            continue;
+        }
+        let kind = status.chars().next().unwrap_or(' ');
+        if matches!(kind, 'R' | 'C') {
+            if index + 1 >= fields.len() {
+                return Err("Git returned an incomplete rename entry.".into());
+            }
+            files.push(CommitFile {
+                original_path: Some(String::from_utf8_lossy(fields[index]).into_owned()),
+                path: String::from_utf8_lossy(fields[index + 1]).into_owned(),
+                status,
+            });
+            index += 2;
+        } else {
+            let Some(path) = fields.get(index) else {
+                return Err("Git returned an incomplete file entry.".into());
+            };
+            files.push(CommitFile {
+                path: String::from_utf8_lossy(path).into_owned(),
+                original_path: None,
+                status,
+            });
+            index += 1;
+        }
+    }
+    Ok(files)
+}
+
+pub fn push(
+    git: &Path,
+    repo: &Path,
+    expected_head: &str,
+    expected_upstream_head: &str,
+) -> Result<String, String> {
+    if !matches!(expected_head.len(), 40 | 64)
+        || !expected_head.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || !matches!(expected_upstream_head.len(), 40 | 64)
+        || !expected_upstream_head
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err("Refresh the push list before pushing.".into());
+    }
+    let (head, upstream_head, source_branch, upstream, remote, destination_branch) =
+        read_upstream(git, repo)?;
+    if head != expected_head {
+        return Err("The branch changed after this preview. Refresh the push list before pushing.".into());
+    }
+    if upstream_head != expected_upstream_head {
+        return Err("The remote-tracking branch changed after this preview. Fetch and refresh the push list before pushing.".into());
+    }
+    let state = changes(git, repo)?;
+    if state.detached {
+        return Err("Select a branch before pushing.".into());
+    }
+    if state.upstream.is_none() {
+        return Err("Configure an upstream before pushing.".into());
+    }
+    if state.behind.unwrap_or(0) > 0 {
+        return Err("The remote has commits you do not have. Fetch and pull before pushing.".into());
+    }
+    let range = format!("{upstream}..HEAD");
+    let count = String::from_utf8_lossy(&run(
+        git,
+        repo,
+        &["rev-list", "--count", range.as_str()],
+    )?)
+    .trim()
+    .parse::<usize>()
+    .map_err(|_| "Git returned an invalid outgoing commit count.".to_string())?;
+    if count == 0 {
+        return Err("There are no commits to push.".into());
+    }
+    let destination = format!("refs/heads/{destination_branch}");
+    let refspec = format!("HEAD:{destination}");
+    let output = run(
+        git,
+        repo,
+        &["push", "--porcelain", remote.as_str(), refspec.as_str()],
+    )?;
+    let output = String::from_utf8_lossy(&output)
+        .trim()
+        .chars()
+        .take(2000)
+        .collect::<String>();
+    let summary = format!(
+        "Pushed {count} commit(s) from {source_branch} to {remote}:{destination_branch}."
+    );
+    Ok(if output.is_empty() {
+        summary
+    } else {
+        format!("{summary}\n{output}")
+    })
+}
+
 pub fn diff(git: &Path, repo: &Path, path: &str, staged: bool) -> Result<Diff, String> {
     let state = changes(git, repo)?;
     let file = state

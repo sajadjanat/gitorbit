@@ -42,6 +42,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -59,11 +66,29 @@ import {
 } from "@/lib/native";
 import { useMonitor } from "@/lib/use-monitor";
 import { RepositoryHistory } from "@/components/repository-history";
+import { PushPreview } from "@/components/push-preview";
 import { VersionControl } from "@/components/version-control";
 import { AppearanceButton } from "@/components/appearance";
 import { AppUpdates } from "@/components/app-updates";
 import "./index.css";
 import { version } from "../package.json";
+
+const drawerWidthKey = "workspace-monitor-detail-drawer-width";
+const defaultDrawerWidth = 76;
+const minDrawerWidth = 48;
+const maxDrawerWidth = 92;
+
+function clampDrawerWidth(width: number) {
+  return Math.min(maxDrawerWidth, Math.max(minDrawerWidth, width));
+}
+
+function readDrawerWidth() {
+  if (typeof window === "undefined") return defaultDrawerWidth;
+  const saved = window.localStorage.getItem(drawerWidthKey);
+  if (saved === null) return defaultDrawerWidth;
+  const parsed = Number(saved);
+  return Number.isFinite(parsed) ? clampDrawerWidth(parsed) : defaultDrawerWidth;
+}
 
 const tones = {
   red: "bg-red-500/10 text-red-400 border-red-500/20",
@@ -91,7 +116,7 @@ function IconButton({
 }: {
   label: string;
   children: React.ReactNode;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
 }) {
   return (
@@ -134,6 +159,8 @@ export default function App() {
   const [checking, setChecking] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("attention");
+  const [drawerWidth, setDrawerWidth] = useState(readDrawerWidth);
+  const drawerWidthRef = useRef(drawerWidth);
   const [detail, setDetail] = useState<{
     workspaceId: string;
     path: string;
@@ -170,6 +197,47 @@ export default function App() {
         a.name.localeCompare(b.name),
     );
   const needsAttention = snapshot?.repositories.filter(attention).length ?? 0;
+
+  function updateDrawerWidth(width: number, persist = false) {
+    const nextWidth = clampDrawerWidth(width);
+    drawerWidthRef.current = nextWidth;
+    setDrawerWidth(nextWidth);
+    if (persist) localStorage.setItem(drawerWidthKey, String(nextWidth));
+  }
+
+  function startDrawerResize(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveDrawerResize(event: React.PointerEvent<HTMLDivElement>) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    updateDrawerWidth((event.clientX / window.innerWidth) * 100);
+  }
+
+  function finishDrawerResize() {
+    localStorage.setItem(drawerWidthKey, String(drawerWidthRef.current));
+  }
+
+  function handleDrawerResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    let nextWidth: number | null = null;
+    if (event.key === "ArrowRight") nextWidth = drawerWidth + 3;
+    if (event.key === "ArrowLeft") nextWidth = drawerWidth - 3;
+    if (event.key === "Home") nextWidth = minDrawerWidth;
+    if (event.key === "End") nextWidth = maxDrawerWidth;
+    if (nextWidth === null) return;
+    event.preventDefault();
+    updateDrawerWidth(nextWidth, true);
+  }
+
+  function openRepositoryDetails(workspaceId: string, repo: Repository) {
+    setDetail({
+      workspaceId,
+      path: repo.path,
+      ...(repo.ahead && repo.ahead > 0 ? { tab: "push" } : {}),
+    });
+  }
 
   useEffect(() => {
     if (!native.available()) return;
@@ -664,16 +732,19 @@ export default function App() {
                             </TableRow>
                           ))
                         : repositories.map((r) => (
-                            <TableRow key={r.path} className="group">
+                            <TableRow
+                              key={r.path}
+                              className="group cursor-pointer transition-colors duration-150 hover:bg-muted/40 motion-reduce:transition-none"
+                              onClick={() => openRepositoryDetails(active, r)}
+                            >
                               <TableCell className="pl-4 py-2">
                                 <button
+                                  type="button"
                                   className="text-left font-medium hover:underline underline-offset-4 focus-visible:outline-ring rounded-sm"
-                                  onClick={() =>
-                                    setDetail({
-                                      workspaceId: active,
-                                      path: r.path,
-                                    })
-                                  }
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openRepositoryDetails(active, r);
+                                  }}
                                 >
                                   {r.name}
                                 </button>
@@ -717,13 +788,12 @@ export default function App() {
                               </TableCell>
                               <TableCell className="pl-6">
                                 <button
+                                  type="button"
                                   aria-label={`Details for ${r.name}`}
-                                  onClick={() =>
-                                    setDetail({
-                                      workspaceId: active,
-                                      path: r.path,
-                                    })
-                                  }
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openRepositoryDetails(active, r);
+                                  }}
                                 >
                                   <Status repo={r} />
                                 </button>
@@ -731,9 +801,10 @@ export default function App() {
                               <TableCell>
                                 <IconButton
                                   label={`Open ${r.name} folder`}
-                                  onClick={() =>
+                                  onClick={(event) => {
+                                    event.stopPropagation();
                                     void openRepository(active, r.path)
-                                  }
+                                  }}
                                 >
                                   <FolderOpen className="size-3.5 text-muted-foreground" />
                                 </IconButton>
@@ -769,7 +840,7 @@ export default function App() {
                     {timeLabel(snapshot?.fetchedAt)}
                   </span>
                   <span>
-                    Click a repository for Git graph and files <span className="mx-1">·</span>{" "}
+                    Click a repository for its Git graph, files, or outgoing commits <span className="mx-1">·</span>{" "}
                     ? = no upstream count
                   </span>
                 </div>
@@ -788,12 +859,36 @@ export default function App() {
           </span>
           <span>Local changes live · Remote counts update on fetch</span>
         </footer>
-        <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) setDetail(null); }}>
-          <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[1400px] h-[calc(100dvh-3rem)] max-h-[960px] flex flex-col gap-0 p-0 overflow-hidden">
-            <DialogHeader className="px-5 pt-5 pb-3 shrink-0 pr-12">
-              <DialogTitle className="flex items-center gap-2"><FolderGit2 className="size-4" />{selected?.name ?? "Repository"}</DialogTitle>
-              <DialogDescription className="font-mono text-[11px] truncate" title={selected?.path}>{selected?.path}</DialogDescription>
-            </DialogHeader>
+        <Sheet open={Boolean(detail)} onOpenChange={(open) => { if (!open) setDetail(null); }}>
+          <SheetContent
+            side="left"
+            style={{ "--sheet-width": `${drawerWidth}vw` } as React.CSSProperties}
+            className="flex flex-col gap-0 p-0 overflow-hidden"
+          >
+            <div
+              role="separator"
+              aria-label="Resize repository details panel"
+              aria-orientation="vertical"
+              aria-valuemin={minDrawerWidth}
+              aria-valuemax={maxDrawerWidth}
+              aria-valuenow={Math.round(drawerWidth)}
+              aria-valuetext={`${Math.round(drawerWidth)}% of window width`}
+              tabIndex={0}
+              title="Drag to resize · use arrow keys to adjust"
+              className="group absolute inset-y-12 right-0 z-50 hidden w-4 touch-none select-none cursor-col-resize items-center justify-center outline-none focus-visible:bg-primary/10 sm:flex"
+              onPointerDown={startDrawerResize}
+              onPointerMove={moveDrawerResize}
+              onPointerUp={finishDrawerResize}
+              onPointerCancel={finishDrawerResize}
+              onLostPointerCapture={finishDrawerResize}
+              onKeyDown={handleDrawerResizeKeyDown}
+            >
+              <span className="h-12 w-1 rounded-full bg-border transition-colors duration-150 group-hover:bg-primary group-focus-visible:bg-primary" />
+            </div>
+            <SheetHeader className="px-5 pt-5 pb-3 shrink-0 pr-12">
+              <SheetTitle className="flex items-center gap-2"><FolderGit2 className="size-4" />{selected?.name ?? "Repository"}</SheetTitle>
+              <SheetDescription className="font-mono text-[11px] truncate" title={selected?.path}>{selected?.path}</SheetDescription>
+            </SheetHeader>
             {selected && detail && <>
               <div className="flex flex-wrap items-center gap-3 px-5 pb-3 shrink-0 text-xs">
                 <Status repo={selected} /><span className="text-muted-foreground flex items-center gap-1"><GitBranch className="size-3" />{selected.detached ? "Detached HEAD" : selected.branch}</span>
@@ -801,14 +896,15 @@ export default function App() {
                 <Button variant="outline" size="sm" className="ml-auto" disabled={pulling} onClick={() => void pullRepositories(detail.workspaceId, [selected], selected.name)}><ArrowDown className="size-3.5" />Pull repository</Button>
                 <Button variant="ghost" size="sm" onClick={() => void openRepository(detail.workspaceId, selected.path)}><FolderOpen className="size-3.5" />Open folder</Button>
               </div>
-              <Tabs key={selected.path} defaultValue={detail.tab ?? "graph"} className="flex-1 min-h-0 gap-0">
-                <TabsList className="mx-5 mb-2 shrink-0 w-fit"><TabsTrigger value="graph">Git graph</TabsTrigger><TabsTrigger value="changes">Version Control <span className="ml-1 text-muted-foreground">{selected.changed}</span></TabsTrigger></TabsList>
-                <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory workspaceId={detail.workspaceId} path={selected.path} refreshedAt={monitor.snapshots[detail.workspaceId]?.scannedAt} /></TabsContent>
-                <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl workspaceId={detail.workspaceId} path={selected.path} refreshedAt={monitor.snapshots[detail.workspaceId]?.scannedAt} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
+              <Tabs key={`${selected.path}:${detail.tab ?? "graph"}`} defaultValue={detail.tab ?? "graph"} className="flex-1 min-h-0 gap-0">
+                <TabsList className="mx-5 mb-2 shrink-0 w-fit"><TabsTrigger value="graph">Git graph</TabsTrigger><TabsTrigger value="changes">Version Control <span className="ml-1 text-muted-foreground">{selected.changed}</span></TabsTrigger><TabsTrigger value="push">Push <span className="ml-1 text-muted-foreground">{selected.ahead ?? "?"}</span></TabsTrigger></TabsList>
+                <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory workspaceId={detail.workspaceId} path={selected.path} /></TabsContent>
+                <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
+                <TabsContent value="push" className="m-0 flex flex-1 min-h-0 border-t"><PushPreview workspaceId={detail.workspaceId} path={selected.path} upstream={selected.upstream} behind={selected.behind} onPushed={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
               </Tabs>
             </>}
-          </DialogContent>
-        </Dialog>
+          </SheetContent>
+        </Sheet>
         <Dialog open={showPullReport} onOpenChange={setShowPullReport}>
           <DialogContent className="sm:max-w-xl max-h-[85vh] flex flex-col">
             <DialogHeader><DialogTitle>{pullReport?.title ?? "Pull results"}</DialogTitle><DialogDescription>Fast-forward updates. Repositories with local changes, no upstream, or divergent history need attention.</DialogDescription></DialogHeader>

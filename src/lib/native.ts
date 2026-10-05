@@ -68,6 +68,27 @@ export interface GitHistory {
   hasMore: boolean;
   shallow: boolean;
 }
+export interface OutgoingCommit {
+  hash: string;
+  subject: string;
+  author: string;
+  timestamp: number;
+}
+export interface Outgoing {
+  head: string;
+  upstreamHead: string;
+  sourceBranch: string;
+  remote: string;
+  destinationBranch: string;
+  totalCommits: number;
+  hasMore: boolean;
+  commits: OutgoingCommit[];
+}
+export interface CommitFile {
+  path: string;
+  originalPath: string | null;
+  status: string;
+}
 export const native = {
   available: isTauri,
   environment: () => invoke<Environment>("check_environment"),
@@ -86,6 +107,12 @@ export const native = {
     invoke<void>("open_repository", { workspaceId, path }),
   history: (workspaceId: string, path: string, limit: number, scope: "all" | "head") =>
     invoke<GitHistory>("repository_history", { workspaceId, path, limit, scope }),
+  outgoing: (workspaceId: string, path: string) =>
+    invoke<Outgoing>("repository_outgoing", { workspaceId, path }),
+  commitFiles: (workspaceId: string, path: string, commitHash: string) =>
+    invoke<CommitFile[]>("repository_commit_files", { workspaceId, path, commitHash }),
+  push: (workspaceId: string, path: string, expectedHead: string, expectedUpstreamHead: string) =>
+    invoke<string>("push_repository", { workspaceId, path, expectedHead, expectedUpstreamHead }),
   changes: (workspaceId: string, path: string) => invoke<Repository>("repository_changes", { workspaceId, path }),
   diff: (workspaceId: string, path: string, file: string, staged: boolean) => invoke<{text: string; truncated: boolean}>("repository_diff", { workspaceId, path, file, staged }),
   action: (workspaceId: string, path: string, action: "stage" | "unstage" | "commit" | "pull", paths: string[] = [], message: string | null = null) => invoke<string>("repository_action", { workspaceId, path, action, paths, message }),

@@ -254,6 +254,62 @@ async fn repository_history(
     .map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn repository_outgoing(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    path: String,
+) -> Result<version_control::Outgoing, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        version_control::outgoing(&git, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_commit_files(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    path: String,
+    commit_hash: String,
+) -> Result<Vec<version_control::CommitFile>, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        version_control::outgoing_commit_files(&git, &path, &commit_hash)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn push_repository(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    workspace_id: String,
+    path: String,
+    expected_head: String,
+    expected_upstream_head: String,
+) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state
+        .operation_locks
+        .lock()
+        .map_err(|e| e.to_string())?
+        .entry(path.clone())
+        .or_default()
+        .clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock.lock().map_err(|e| e.to_string())?;
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        version_control::push(&git, &path, &expected_head, &expected_upstream_head)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id);
+    result
+}
+#[tauri::command]
 async fn repository_changes(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -412,7 +468,7 @@ pub fn run() {
             }
             #[cfg(not(debug_assertions))] let _ = (webview, payload);
         })
-        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_changes, repository_diff, repository_action, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
+        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, push_repository, repository_changes, repository_diff, repository_action, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
         .run(tauri::generate_context!()).expect("error while running Workspace Monitor");
 }
 
