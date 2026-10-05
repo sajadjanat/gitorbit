@@ -48,6 +48,9 @@ jobs:
           cargo build --release --locked --manifest-path src-tauri/Cargo.toml --bin monitor-cli --target x86_64-apple-darwin
           mkdir -p src-tauri/target/universal-apple-darwin/release
           lipo -create src-tauri/target/aarch64-apple-darwin/release/monitor-cli src-tauri/target/x86_64-apple-darwin/release/monitor-cli -output src-tauri/target/universal-apple-darwin/release/monitor-cli
+      - name: Read release notes
+        id: notes
+        run: node -e "const fs=require('fs'); const v=require('./package.json').version; fs.appendFileSync(process.env.GITHUB_OUTPUT,'body<<GITORBIT_NOTES\n'+fs.readFileSync('docs/releases/'+v+'.md','utf8')+'\nGITORBIT_NOTES\n')"
       - name: Build and publish signed packages
         uses: tauri-apps/tauri-action@v0
         env:
@@ -57,8 +60,23 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: GitOrbit __VERSION__
-          releaseBody: Signed desktop release. Install once to enable future in-app updates. Existing workspaces and appearance settings are preserved.
-          releaseDraft: false
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: true
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+      - name: Verify Windows installation migration
+        if: runner.os == 'Windows'
+        run: ./scripts/test-installer-migration.ps1
+  publish:
+    needs: release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify all signed platform entries and publish release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/finalize-release.mjs

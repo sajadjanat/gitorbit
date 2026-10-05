@@ -5,7 +5,7 @@
   <p>A compact desktop Git monitor built with Tauri, React, and shadcn/ui.</p>
   <p>
     <a href="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml"><img src="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml/badge.svg" alt="Desktop builds" /></a>
-    <a href="https://github.com/sajadjanat/gitorbit/releases"><img src="https://img.shields.io/badge/version-0.3.2-blue" alt="Version 0.3.2" /></a>
+    <a href="https://github.com/sajadjanat/gitorbit/releases"><img src="https://img.shields.io/badge/version-0.4.0-blue" alt="Version 0.4.0" /></a>
     <img src="https://img.shields.io/badge/Tauri-2-24c8db?logo=tauri&logoColor=white" alt="Tauri 2" />
     <img src="https://img.shields.io/badge/UI-shadcn%2Fui-18181b?logo=shadcnui&logoColor=white" alt="shadcn/ui" />
   </p>
@@ -141,7 +141,9 @@ Starting with **0.3.0**, the app checks for new releases at startup and every si
 
 Only packages signed with the configured release key are accepted. The signature also binds the advertised version to the package, and older versions are not offered. Checks use the public `latest.json` asset on the latest GitHub release. The signed release workflow publishes installers, signatures, and that manifest.
 
-Users of **0.1.0 or 0.2.0 must install 0.3.1 once manually** to enable future in-app updates. On Windows, the updater uses the NSIS installer; a portable installation is upgraded to the normal per-user installation. Linux updates use the AppImage, and macOS uses the application bundle. Platform entries appear as their signed release builds complete.
+**Workspace Monitor is now GitOrbit.** Versions **0.3.0–0.3.2** can upgrade directly from **Updates → Update & restart**. The original update URL redirects to the GitOrbit repository, and the signing key and application identifier remain the same. Saved workspaces and appearance settings are preserved. Windows upgrades reuse verified legacy installations and update existing shortcuts and icons. Keep the former `sajadjanat/workspace-monitor` repository name available for GitHub's redirect; reusing it would break old clients' update URL.
+
+Users of **0.1.0 or 0.2.0 must install the latest GitOrbit release once manually** to enable future in-app updates. On Windows, the updater uses the NSIS installer; a portable installation is upgraded to the normal per-user installation. Linux updates use the AppImage, and macOS uses the application bundle. Releases are published after signed update packages for all three operating systems are ready.
 
 **Update connection** defaults to your system proxy settings. If a configured proxy prevents checks or downloads, select **Direct connection** to use direct HTTPS for updates. The choice is saved separately from workspace and appearance preferences. Switching mode clears the previous result and checks again; downloads use the connection that found the release.
 
