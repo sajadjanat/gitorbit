@@ -33,6 +33,8 @@ Unicode true
 !define PRODUCTNAME "GitOrbit"
 !define MAINBINARYNAME "workspace-monitor"
 !define MANUPRODUCTKEY "@KEY@\GitOrbit"
+!define UNINSTKEY "@KEY@\Uninstall"
+!define STARTMENUFOLDER ""
 !define GITORBIT_LEGACY_PRODUCTKEY "@KEY@\Workspace Monitor"
 !define GITORBIT_LEGACY_UNINSTKEY "@KEY@\LegacyUninstall"
 !include "@HOOK@"
@@ -116,6 +118,24 @@ Section
   !insertmacro CheckState "existing GitOrbit install is not redirected" "@FRESH@" 0
 
   DeleteRegKey SHCTX "@KEY@"
+  ; Exercise the real shortcut update on isolated files, never user shortcuts.
+  StrCpy $INSTDIR "@FRESH@"
+  SetOutPath "$INSTDIR"
+  File /oname=gitorbit-icon-v3.ico "@ICON@"
+  File /oname=workspace-monitor.exe "@PAYLOAD@"
+  CreateShortcut "@FRESH@\GitOrbit.lnk" "$INSTDIR\${MAINBINARYNAME}.exe" "--example" "" 0
+  CreateShortcut "@FRESH@\Other.lnk" "@LEGACY@\${MAINBINARYNAME}.exe" "--other" "" 0
+  !insertmacro GitOrbitSetShortcutIcon "@FRESH@\GitOrbit.lnk"
+  !insertmacro GitOrbitSetShortcutIcon "@FRESH@\Other.lnk"
+  !insertmacro NSIS_HOOK_POSTINSTALL
+  ReadRegStr $0 SHCTX "${UNINSTKEY}" "DisplayIcon"
+  ${If} $0 != "$INSTDIR\gitorbit-icon-v3.ico,0"
+    IntOp $TestFailures $TestFailures + 1
+    FileWrite $9 "FAIL: installed program icon not updated$\r$\n"
+  ${Else}
+    FileWrite $9 "PASS: installed program icon uses standalone ICO$\r$\n"
+  ${EndIf}
+  DeleteRegKey SHCTX "@KEY@"
   FileClose $9
   SetErrorLevel $TestFailures
 SectionEnd
@@ -123,6 +143,7 @@ SectionEnd
 $testTokens = @{
     '@UTILS@' = $testUtils; '@KEY@' = $testKey; '@HOOK@' = $testHook
     '@EXE@' = $testExe; '@REPORT@' = $testReport; '@LEGACY@' = $testLegacy; '@FRESH@' = $testFresh; '@PAYLOAD@' = $testPayload
+    '@ICON@' = (Join-Path $testRepo 'src-tauri/icons/icon.ico')
 }
 foreach ($token in $testTokens.Keys) { $testSource = $testSource.Replace($token, $testTokens[$token]) }
 $testNsi = Join-Path $testDir 'verify.nsi'
@@ -134,3 +155,12 @@ Get-Content -LiteralPath $testReport
 if ($testProcess.ExitCode -ne 0) { throw "Migration verification failed: $($testProcess.ExitCode) checks." }
 if ((Get-FileHash -LiteralPath $testState).Hash -ne $testStateHash) { throw 'Legacy workspace state changed.' }
 Write-Output 'PASS: legacy workspace state preserved'
+$testShell = New-Object -ComObject WScript.Shell
+$testShortcut = $testShell.CreateShortcut((Join-Path $testFresh 'GitOrbit.lnk'))
+if ($testShortcut.IconLocation -ne "$(Join-Path $testFresh 'gitorbit-icon-v3.ico'),0" -or $testShortcut.Arguments -ne '--example' -or $testShortcut.TargetPath -ne (Join-Path $testFresh 'workspace-monitor.exe')) { throw 'Shortcut icon or preserved properties are incorrect.' }
+Write-Output 'PASS: matching shortcut icon updated with target and arguments preserved'
+$testOther = $testShell.CreateShortcut((Join-Path $testFresh 'Other.lnk'))
+if ($testOther.IconLocation -ne ',0' -or $testOther.Arguments -ne '--other') { throw 'Unrelated shortcut was modified.' }
+Write-Output 'PASS: unrelated shortcut preserved'
+if ((Get-FileHash -LiteralPath (Join-Path $testFresh 'gitorbit-icon-v3.ico')).Hash -ne (Get-FileHash -LiteralPath (Join-Path $testRepo 'src-tauri/icons/icon.ico')).Hash) { throw 'Standalone ICO payload differs from native app icon.' }
+Write-Output 'PASS: standalone ICO payload matches native app icon'

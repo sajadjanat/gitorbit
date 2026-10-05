@@ -427,6 +427,10 @@ async fn check_app_update(
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let mut context = tauri::generate_context!();
+    // Use the transparent RGBA source for window and taskbar icons as well as
+    // the executable's ICO resources used by Explorer.
+    context.set_default_window_icon(Some(tauri::include_image!("icons/128x128@2x.png")));
     tauri::Builder::default().plugin(tauri_plugin_opener::init()).plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).plugin(tauri_plugin_process::init()).manage(AppState::default())
         .on_page_load(|webview, payload| {
             #[cfg(debug_assertions)]
@@ -469,7 +473,7 @@ pub fn run() {
             #[cfg(not(debug_assertions))] let _ = (webview, payload);
         })
         .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, push_repository, repository_changes, repository_diff, repository_action, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
-        .run(tauri::generate_context!()).expect("error while running Workspace Monitor");
+        .run(context).expect("error while running GitOrbit");
 }
 
 #[tauri::command]
