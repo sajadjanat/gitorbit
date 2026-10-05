@@ -1,3 +1,4 @@
+import { t, number, useLanguage } from "@/lib/i18n";
 import { useEffect, useState } from "react";
 import { ArrowUpFromLine, ChevronDown, FileCode2, GitCommitHorizontal, LoaderCircle, Minus, Plus, RefreshCw, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ export function fileGroups(files: ChangedFile[]) {
   };
 }
 export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyChange }: { workspaceId: string; path: string; onChanged: () => void; blocked: boolean; onBusyChange?: (busy: boolean) => void }) {
+  const { direction } = useLanguage();
   const [state, setState] = useState<Repository | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -74,14 +76,14 @@ export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyCh
           const outgoing = await native.outgoing(workspaceId, path);
           result += outgoing.totalCommits > 0
             ? `\n${await native.push(workspaceId, path, outgoing.head, outgoing.upstreamHead)}`
-            : "\nThere are no outgoing commits to push.";
+            : "\n" + t("There are no outgoing commits to push.");
         }
       }
       setNotice(result);
       setChecked(new Set()); setPreview(null);
     } catch (e) {
       setNotice("");
-      setError(committed ? `Commit created, but push failed: ${String(e)}` : String(e));
+      setError(committed ? t("Commit created, but push failed: {error}", {error: String(e)}) : String(e));
     }
     finally { setBusy(false); onBusyChange?.(false); setReload((n) => n + 1); onChanged(); }
   }
@@ -94,17 +96,16 @@ export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyCh
   const commitAndPushDisabled = commitDisabled || !state?.upstream || (state?.behind ?? 0) > 0;
   return <div className="flex-1 min-h-0 flex flex-col" data-testid="version-control">
     <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b">
-      <Button variant="outline" size="sm" disabled={locked || !hasStage} onClick={() => void action("stage")}><Plus className="size-3.5" />Stage selected</Button>
-      <Button variant="outline" size="sm" disabled={locked || !hasUnstage} onClick={() => void action("unstage")}><Minus className="size-3.5" />Unstage selected</Button>
-      <Button variant="ghost" size="sm" className="ml-auto" aria-label="Refresh files" disabled={busy || blocked} onClick={() => { setReload((n) => n + 1); onChanged(); }}>
-        {loading ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}Refresh
-      </Button>
+      <Button variant="outline" size="sm" disabled={locked || !hasStage} onClick={() => void action("stage")}><Plus className="size-3.5" />{t("Stage selected")}</Button>
+      <Button variant="outline" size="sm" disabled={locked || !hasUnstage} onClick={() => void action("unstage")}><Minus className="size-3.5" />{t("Unstage selected")}</Button>
+      <Button variant="ghost" size="sm" className="ms-auto" aria-label={t("Refresh files")} disabled={busy || blocked} onClick={() => { setReload((n) => n + 1); onChanged(); }}>
+        {loading ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}{t("Refresh")}</Button>
     </div>
-    {(error || loadError || notice) && <Alert variant={error || loadError ? "destructive" : "default"} className="mx-4 my-2 w-auto py-2"><AlertDescription>{error || loadError || notice}</AlertDescription></Alert>}
+    {(error || loadError || notice) && <Alert variant={error || loadError ? "destructive" : "default"} className="mx-4 my-2 w-auto py-2"><AlertDescription>{t(error || loadError || notice)}</AlertDescription></Alert>}
     <div className="flex flex-1 min-h-0 flex-col md:flex-row">
-      <div className="md:w-[360px] md:shrink-0 border-b md:border-b-0 md:border-r flex flex-col min-h-0 max-h-[45%] md:max-h-none">
+      <div className="md:w-[360px] md:shrink-0 border-b md:border-b-0 md:border-e flex flex-col min-h-0 max-h-[45%] md:max-h-none">
         <div className="flex-1 min-h-0 overflow-auto p-2">
-          {loading && !state && <p className="text-xs text-muted-foreground p-3">Reading changed files…</p>}
+          {loading && !state && <p className="text-xs text-muted-foreground p-3">{t("Reading changed files…")}</p>}
           {(["staged", "changes", "unversioned"] as Group[]).map((group) => {
             const files = groups[group]; const keys = files.map((f) => `${group}:${f.path}`);
             const selectedCount = keys.filter((key) => checked.has(key)).length;
@@ -115,7 +116,7 @@ export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyCh
                   type="button"
                   aria-expanded={!collapsed}
                   aria-controls={`file-group-${group}`}
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded-sm py-1 text-left text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-sm py-1 text-start text-xs focus-visible:outline-2 focus-visible:outline-ring"
                   onClick={() => {
                     setCollapsedGroups((current) => {
                       const next = new Set(current);
@@ -125,11 +126,11 @@ export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyCh
                     });
                   }}
                 >
-                  <ChevronDown className={`size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ease-out motion-reduce:transition-none ${collapsed ? "-rotate-90" : "rotate-0"}`} />
-                  <span className="font-medium">{group === "staged" ? "Staged" : group === "changes" ? "Changes" : "Unversioned Files"}</span>
-                  <span className="text-muted-foreground">{files.length}</span>
+                  <ChevronDown className={`size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ease-out motion-reduce:transition-none ${collapsed ? direction === "rtl" ? "rotate-90" : "-rotate-90" : "rotate-0"}`} />
+                  <span className="font-medium">{group === "staged" ? t("Staged") : group === "changes" ? t("Changes") : t("Unversioned Files")}</span>
+                  <span className="text-muted-foreground">{number(files.length)}</span>
                 </button>
-                <Checkbox aria-label={`Select all ${group}`} disabled={locked || !files.length} checked={selectedCount === files.length && files.length > 0 ? true : selectedCount > 0 ? "indeterminate" : false} onCheckedChange={(value) => toggle(keys, value === true)} />
+                <Checkbox aria-label={t("Select all {group}", {group: t(group)})} disabled={locked || !files.length} checked={selectedCount === files.length && files.length > 0 ? true : selectedCount > 0 ? "indeterminate" : false} onCheckedChange={(value) => toggle(keys, value === true)} />
               </div>
               <div
                 id={`file-group-${group}`}
@@ -140,12 +141,12 @@ export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyCh
                 <div className="min-h-0 overflow-hidden">
                 {files.map((file) => {
                 const key = `${group}:${file.path}`; const slash = file.path.lastIndexOf("/");
-                return <div key={key} className={`ml-5 flex items-center gap-2 px-1 h-7 rounded-sm text-xs transition-colors duration-150 motion-reduce:transition-none ${preview?.file === file.path && preview.staged === (group === "staged") ? "bg-accent" : "hover:bg-muted/40"}`}>
-                  <Checkbox aria-label={`Select ${group} ${file.path}`} disabled={locked} checked={checked.has(key)} onCheckedChange={(value) => toggle([key], value === true)} />
-                  <button className="flex gap-2 items-center flex-1 min-w-0 text-left h-full focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setPreview({ file: file.path, staged: group === "staged", unversioned: group === "unversioned" })} title={file.originalPath ? `${file.originalPath} → ${file.path}` : file.path}>
+                return <div key={key} className={`ms-5 flex items-center gap-2 px-1 h-7 rounded-sm text-xs transition-colors duration-150 motion-reduce:transition-none ${preview?.file === file.path && preview.staged === (group === "staged") ? "bg-accent" : "hover:bg-muted/40"}`}>
+                  <Checkbox aria-label={t("Select {group} {path}", {group: t(group), path: file.path})} disabled={locked} checked={checked.has(key)} onCheckedChange={(value) => toggle([key], value === true)} />
+                  <button className="flex gap-2 items-center flex-1 min-w-0 text-start h-full focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setPreview({ file: file.path, staged: group === "staged", unversioned: group === "unversioned" })} title={file.originalPath ? `${file.originalPath} → ${file.path}` : file.path}>
                     <FileCode2 className={`size-3.5 shrink-0 ${group === "staged" ? "text-emerald-500" : group === "unversioned" ? "text-red-400" : "text-blue-500"}`} />
                     <span className={`truncate shrink-0 max-w-[60%] ${group === "unversioned" ? "text-red-400" : ""}`}>{file.path.slice(slash + 1)}</span><span className="truncate text-muted-foreground text-[10px]">{slash >= 0 ? file.path.slice(0, slash) : ""}</span>
-                    <code className={`ml-auto shrink-0 text-[10px] ${group === "unversioned" ? "text-red-400" : "text-muted-foreground"}`}>{file.status.trim()}</code>
+                    <code className={`ms-auto shrink-0 text-[10px] ${group === "unversioned" ? "text-red-400" : "text-muted-foreground"}`}>{file.status.trim()}</code>
                   </button>
                 </div>;
               })}
@@ -153,35 +154,33 @@ export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyCh
               </div>
             </section>;
           })}
-          {state && !state.files.length && <p className="text-xs text-muted-foreground p-3">Working tree clean.</p>}
+          {state && !state.files.length && <p className="text-xs text-muted-foreground p-3">{t("Working tree clean.")}</p>}
         </div>
         <footer className="shrink-0 border-t bg-background/95 p-3 space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <label htmlFor="commit-message" className="text-xs font-medium text-muted-foreground">Commit message</label>
-            <span className="text-[10px] text-muted-foreground">{groups.staged.length} staged</span>
+            <label htmlFor="commit-message" className="text-xs font-medium text-muted-foreground">{t("Commit message")}</label>
+            <span className="text-[10px] text-muted-foreground">{t("{count} staged", {count: groups.staged.length})}</span>
           </div>
-          <Textarea
-            id="commit-message"
-            aria-label="Commit Message"
+          <Textarea dir="auto"             id="commit-message"
+            aria-label={t("Commit Message")}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
-            placeholder="Commit Message"
+            placeholder={t("Commit Message")}
             className="min-h-16 max-h-28 resize-y px-3 py-2 text-xs leading-5"
             disabled={busy || blocked}
           />
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <Button size="sm" className="min-w-0 px-2" disabled={commitDisabled} onClick={() => void action("commit")}>
               {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <GitCommitHorizontal className="size-3.5" />}
-              Commit
-            </Button>
+              {t("Commit")}</Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Commit options" title="Commit options" className="size-8">
+                <Button variant="ghost" size="icon" aria-label={t("Commit options")} title={t("Commit options")} className="size-8">
                   <Settings2 className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" align="end" className="w-56">
-                <DropdownMenuLabel>Commit options</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("Commit options")}</DropdownMenuLabel>
                 <DropdownMenuCheckboxItem
                   checked={keepMessage}
                   onCheckedChange={(value) => {
@@ -189,8 +188,7 @@ export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyCh
                     localStorage.setItem(keepMessageKey, String(value));
                   }}
                 >
-                  Keep message after commit
-                </DropdownMenuCheckboxItem>
+                  {t("Keep message after commit")}</DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -199,21 +197,20 @@ export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyCh
             size="sm"
             className="w-full"
             disabled={commitAndPushDisabled}
-            title={!state?.upstream ? "Configure an upstream branch to commit and push." : (state?.behind ?? 0) > 0 ? "Pull incoming commits before pushing." : undefined}
+            title={!state?.upstream ? t("Configure an upstream branch to commit and push.") : (state?.behind ?? 0) > 0 ? t("Pull incoming commits before pushing.") : undefined}
             onClick={() => void action("commit", true)}
           >
             {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <ArrowUpFromLine className="size-3.5" />}
-            Commit and Push…
-          </Button>
+            {t("Commit and Push…")}</Button>
         </footer>
       </div>
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         {preview ? <>
-          <div className="px-4 py-2 border-b text-xs flex gap-2 items-center"><span className="font-mono truncate" title={preview.file}>{preview.file}</span><span className="text-muted-foreground ml-auto shrink-0">{preview.staged ? "HEAD → Index" : "Index → Working tree"}</span></div>
-          <div className="min-h-0 min-w-0 flex-1 overflow-hidden" aria-label="File diff">
-            {diffError ? <p className="px-4 py-3 text-destructive">{diffError}</p> : !diff ? <p className="px-4 py-3 text-muted-foreground">Loading diff…</p> : !diff.text ? <p className="px-4 py-3 text-muted-foreground">No text difference in this view.</p> : <SideBySideDiff text={diff.text} staged={preview.staged} newFile={preview.unversioned} truncated={diff.truncated} />}
+          <div className="px-4 py-2 border-b text-xs flex gap-2 items-center"><span dir="ltr" className="font-mono truncate" title={preview.file}>{preview.file}</span><span className="text-muted-foreground ms-auto shrink-0">{preview.staged ? t("HEAD → Index") : t("Index → Working tree")}</span></div>
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden" aria-label={t("File diff")}>
+            {diffError ? <p className="px-4 py-3 text-destructive">{t(diffError)}</p> : !diff ? <p className="px-4 py-3 text-muted-foreground">{t("Loading diff…")}</p> : !diff.text ? <p className="px-4 py-3 text-muted-foreground">{t("No text difference in this view.")}</p> : <SideBySideDiff text={diff.text} staged={preview.staged} newFile={preview.unversioned} truncated={diff.truncated} />}
           </div>
-        </> : <div className="flex-1 grid place-items-center p-6 text-xs text-muted-foreground text-center"><div><FileCode2 className="size-6 mx-auto mb-3 opacity-50" />Select a file to review its diff.<br /><span className="block mt-2">Stage your selection, then commit the staged files.</span></div></div>}
+        </> : <div className="flex-1 grid place-items-center p-6 text-xs text-muted-foreground text-center"><div><FileCode2 className="size-6 mx-auto mb-3 opacity-50" />{t("Select a file to review its diff.")}<br /><span className="block mt-2">{t("Stage your selection, then commit the staged files.")}</span></div></div>}
       </div>
     </div>
   </div>;

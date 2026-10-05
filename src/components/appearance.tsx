@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useEffect, useState } from "react";
 import { Check, Monitor, Moon, Palette, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,28 +48,28 @@ export function AppearanceButton() {
     return () => media?.removeEventListener("change", apply);
   }, [settings]);
   return <>
-    <Button variant="ghost" size="icon-sm" aria-label="Appearance" onClick={() => setOpen(true)}><Palette className="size-4" /></Button>
+    <Button variant="ghost" size="icon-sm" aria-label={t("Appearance")} onClick={() => setOpen(true)}><Palette className="size-4" /></Button>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Appearance</DialogTitle><DialogDescription>Make the workspace feel like yours. Changes are saved automatically.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Appearance")}</DialogTitle><DialogDescription>{t("Make the workspace feel like yours. Changes are saved automatically.")}</DialogDescription></DialogHeader>
         <div className="space-y-5 pt-2">
-          <fieldset><legend className="text-xs font-medium mb-2">Mode</legend><div className="grid grid-cols-3 gap-2">
+          <fieldset><legend className="text-xs font-medium mb-2">{t("Mode")}</legend><div className="grid grid-cols-3 gap-2">
             {(["light", "dark", "system"] as const).map((mode) => {
               const Icon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
-              return <Button key={mode} variant={settings.mode === mode ? "default" : "outline"} aria-pressed={settings.mode === mode} onClick={() => setSettings({ ...settings, mode })}><Icon className="size-4" />{mode[0].toUpperCase() + mode.slice(1)}</Button>;
+              return <Button key={mode} variant={settings.mode === mode ? "default" : "outline"} aria-pressed={settings.mode === mode} onClick={() => setSettings({ ...settings, mode })}><Icon className="size-4" />{t(mode[0].toUpperCase() + mode.slice(1))}</Button>;
             })}
           </div></fieldset>
-          <fieldset><legend className="text-xs font-medium mb-2">Palette</legend><div className="grid grid-cols-2 gap-2">
+          <fieldset><legend className="text-xs font-medium mb-2">{t("Palette")}</legend><div className="grid grid-cols-2 gap-2">
             {PALETTES.map((palette) => <Button key={palette.id} variant="outline" className="justify-start" aria-pressed={settings.palette === palette.id} onClick={() => setSettings({ ...settings, palette: palette.id, accent: null })}>
-              <span className="size-4 rounded-full border" style={{ background: palette.accent }} />{palette.name}{settings.palette === palette.id && <Check className="size-3 ml-auto" />}
+              <span className="size-4 rounded-full border" style={{ background: palette.accent }} />{t(palette.name)}{settings.palette === palette.id && <Check className="size-3 ms-auto" />}
             </Button>)}
           </div></fieldset>
-          <div><label htmlFor="accent-color" className="text-xs font-medium">Custom accent</label><div className="flex gap-2 mt-2 items-center">
-            <Input id="accent-color" aria-label="Custom accent color" type="color" className="h-9 w-16 p-1 cursor-pointer" value={settings.accent ?? PALETTES.find((p) => p.id === settings.palette)!.accent} onChange={(e) => setSettings({ ...settings, accent: e.target.value })} />
-            <span className="font-mono text-xs text-muted-foreground">{settings.accent ?? "Palette default"}</span>
-            <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setSettings({ ...settings, accent: null })}>Reset color</Button>
+          <div><label htmlFor="accent-color" className="text-xs font-medium">{t("Custom accent")}</label><div className="flex gap-2 mt-2 items-center">
+            <Input id="accent-color" aria-label={t("Custom accent color")} type="color" className="h-9 w-16 p-1 cursor-pointer" value={settings.accent ?? PALETTES.find((p) => p.id === settings.palette)!.accent} onChange={(e) => setSettings({ ...settings, accent: e.target.value })} />
+            <span dir="ltr" className="font-mono text-xs text-muted-foreground">{settings.accent ?? t("Palette default")}</span>
+            <Button variant="ghost" size="sm" className="ms-auto" onClick={() => setSettings({ ...settings, accent: null })}>{t("Reset color")}</Button>
           </div></div>
-          <Button variant="outline" size="sm" onClick={() => setSettings(defaults)}>Reset appearance</Button>
+          <Button variant="outline" size="sm" onClick={() => setSettings(defaults)}>{t("Reset appearance")}</Button>
         </div>
       </DialogContent>
     </Dialog>

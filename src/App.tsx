@@ -1,3 +1,4 @@
+import { date, number, plural, useLanguage, t } from "@/lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import {
   Activity,
@@ -70,6 +71,7 @@ import { RepositoryHistory } from "@/components/repository-history";
 import { PushPreview } from "@/components/push-preview";
 import { VersionControl } from "@/components/version-control";
 import { AppearanceButton } from "@/components/appearance";
+import { LanguagePicker } from "@/components/language-picker";
 import { AppUpdates } from "@/components/app-updates";
 import "./index.css";
 import { version } from "../package.json";
@@ -105,7 +107,7 @@ function Status({ repo }: { repo: Repository }) {
       variant="outline"
       className={`rounded-md px-2 py-0.5 font-normal ${tones[step.tone]}`}
     >
-      {step.label}
+      {t(step.label)}
     </Badge>
   );
 }
@@ -139,15 +141,16 @@ function IconButton({
 }
 function timeLabel(time: number | null | undefined) {
   return time
-    ? new Date(time).toLocaleTimeString([], {
+    ? date(new Date(time), {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
       })
-    : "Not yet";
+    : t("Not yet");
 }
 
 export default function App() {
+  const { direction } = useLanguage();
   const [environment, setEnvironment] = useState<Environment | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [active, setActive] = useState("");
@@ -214,7 +217,7 @@ export default function App() {
 
   function moveDrawerResize(event: React.PointerEvent<HTMLDivElement>) {
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    updateDrawerWidth((event.clientX / window.innerWidth) * 100);
+    updateDrawerWidth((direction === "rtl" ? 1 - event.clientX / window.innerWidth : event.clientX / window.innerWidth) * 100);
   }
 
   function finishDrawerResize() {
@@ -223,8 +226,8 @@ export default function App() {
 
   function handleDrawerResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     let nextWidth: number | null = null;
-    if (event.key === "ArrowRight") nextWidth = drawerWidth + 3;
-    if (event.key === "ArrowLeft") nextWidth = drawerWidth - 3;
+    if (event.key === "ArrowRight") nextWidth = drawerWidth + (direction === "rtl" ? -3 : 3);
+    if (event.key === "ArrowLeft") nextWidth = drawerWidth + (direction === "rtl" ? 3 : -3);
     if (event.key === "Home") nextWidth = minDrawerWidth;
     if (event.key === "End") nextWidth = maxDrawerWidth;
     if (nextWidth === null) return;
@@ -367,7 +370,7 @@ export default function App() {
   async function pullRepositories(id: string, repos: Repository[], title: string) {
     if (pullGuard.current || repositoryBusy || updating || !repos.length) return;
     pullGuard.current = true; setPulling(true); setShowPullReport(true);
-    setPullReport({ title: `Pull · ${title}`, total: repos.length, results: [] });
+    setPullReport({ title, total: repos.length, results: [] });
     try {
       for (const repo of repos) {
         let result: { name: string; status: string; message: string };
@@ -380,7 +383,7 @@ export default function App() {
   return (
     <TooltipProvider delayDuration={300}>
       <div className="min-h-screen bg-background text-foreground flex flex-col">
-        <header className="h-14 shrink-0 border-b flex items-center justify-between px-6 gap-4">
+        <header className="min-h-14 shrink-0 border-b flex flex-wrap items-center justify-between px-4 sm:px-6 py-2 gap-2">
           <div className="flex items-center gap-3 min-w-0">
             <h1 aria-label="GitOrbit" className="shrink-0 px-2 py-1">
               <GitOrbitWordmark />
@@ -389,19 +392,18 @@ export default function App() {
               variant="outline"
               className="hidden lg:inline-flex text-[10px] font-normal text-muted-foreground"
             >
-              Local Git
-            </Badge>
+              {t("Local Git")}</Badge>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <AppUpdates enabled={desktop} blocked={pulling || repositoryBusy || saving || installing || Object.values(monitor.busy).some(Boolean)} onInstalling={setUpdating} />
-            <AppearanceButton />
+            <LanguagePicker /><AppearanceButton />
             <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
               <span
                 className={`size-1.5 rounded-full ${live ? "bg-emerald-400" : "bg-zinc-500"}`}
               />
-              {live ? "Live" : "Paused"}
+              {live ? t("Live") : t("Paused")}
               <Switch
-                aria-label="Live monitoring"
+                aria-label={t("Live monitoring")}
                 checked={live}
                 onCheckedChange={setLive}
                 disabled={!environment?.gitVersion}
@@ -413,8 +415,7 @@ export default function App() {
               disabled={!ready || !environment?.gitVersion || saving}
             >
               <Plus className="size-4" />
-              Add workspace
-            </Button>
+              {t("Add workspace")}</Button>
           </div>
         </header>
 
@@ -422,19 +423,19 @@ export default function App() {
           <div className="px-6 pt-4">
             <Alert
               variant={error ? "destructive" : "default"}
-              className="relative pr-10"
+              className="relative pe-10"
             >
               <AlertTitle>
-                {error ? "Something needs attention" : "Notice"}
+                {error ? t("Something needs attention") : t("Notice")}
               </AlertTitle>
               <AlertDescription className="break-words whitespace-pre-wrap">
-                {error || notice}
+                {t(error || notice)}
               </AlertDescription>
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="absolute right-2 top-2"
-                aria-label="Dismiss message"
+                className="absolute end-2 top-2"
+                aria-label={t("Dismiss message")}
                 onClick={() => {
                   setError("");
                   setNotice("");
@@ -448,8 +449,8 @@ export default function App() {
 
         {!desktop ? (
           <Empty
-            title="Open the desktop app"
-            description="GitOrbit needs the desktop app to access local folders and Git."
+            title={t("Open the desktop app")}
+            description={t("GitOrbit needs the desktop app to access local folders and Git.")}
             icon={<FolderGit2 />}
           />
         ) : !ready ? (
@@ -457,8 +458,7 @@ export default function App() {
             <Skeleton className="h-10 w-64" />
             <Skeleton className="h-64 w-full" />
             <p className="text-xs text-muted-foreground">
-              Checking Git and restoring workspaces…
-            </p>
+              {t("Checking Git and restoring workspaces…")}</p>
           </div>
         ) : !environment?.gitVersion ? (
           <div className="flex-1 flex items-center justify-center px-6 py-20">
@@ -468,16 +468,13 @@ export default function App() {
               </span>
               <div>
                 <h2 className="text-xl font-semibold tracking-tight">
-                  Install Git to get started
-                </h2>
+                  {t("Install Git to get started")}</h2>
                 <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                  Git was not found on this computer. Install it once to monitor
-                  all your workspaces.
-                </p>
+                  {t("Git was not found on this computer. Install it once to monitor all your workspaces.")}</p>
               </div>
               <p className="text-sm text-muted-foreground">
-                {environment?.installer.description ??
-                  "Check Git availability and try again."}
+                {t(environment?.installer.description ??
+                  t("Check Git availability and try again."))}
               </p>
               {environment?.installer.command && (
                 <code className="block rounded-md border bg-muted/20 p-3 text-xs break-words text-muted-foreground">
@@ -499,35 +496,31 @@ export default function App() {
                     <Download />
                   )}
                   {installing
-                    ? "Installing Git…"
+                    ? t("Installing Git…")
                     : environment?.installer.available
-                      ? "Install Git"
-                      : "Download Git"}
+                      ? t("Install Git")
+                      : t("Download Git")}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => void checkGit()}
                   disabled={checking || installing}
                 >
-                  {checking && <LoaderCircle className="animate-spin" />}Check
-                  again
-                </Button>
+                  {checking && <LoaderCircle className="animate-spin" />}{t("Check again")}</Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Your operating system handles any installation permissions.
-              </p>
+                {t("Your operating system handles any installation permissions.")}</p>
             </div>
           </div>
         ) : !workspaces.length ? (
           <Empty
-            title="Your workspaces, at a glance"
-            description="Choose a folder containing your Git projects. Add more folders as tabs and monitor them together."
+            title={t("Your workspaces, at a glance")}
+            description={t("Choose a folder containing your Git projects. Add more folders as tabs and monitor them together.")}
             icon={<FolderGit2 />}
           >
             <Button onClick={() => void addWorkspaces()} disabled={saving}>
               <Plus />
-              Add your first workspace
-            </Button>
+              {t("Add your first workspace")}</Button>
           </Empty>
         ) : (
           <Tabs
@@ -554,15 +547,15 @@ export default function App() {
                       ) && (
                         <span className="rounded bg-amber-400/10 px-1.5 py-0.5 text-[10px] text-amber-400 tabular-nums">
                           {
-                            monitor.snapshots[w.id].repositories.filter(
+                            number(monitor.snapshots[w.id].repositories.filter(
                               attention,
-                            ).length
+                            ).length)
                           }
                         </span>
                       )}
                     </TabsTrigger>
                     <IconButton
-                      label={`Close ${w.name}`}
+                      label={t("Close {name}", {name: w.name})}
                       onClick={() => void closeWorkspace(w.id)}
                       disabled={saving || pulling}
                     >
@@ -578,10 +571,10 @@ export default function App() {
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight">
                       {workspace.name}
-                      <span className="ml-3 font-normal text-xs text-muted-foreground">
+                      <span className="ms-3 font-normal text-xs text-muted-foreground">
                         {snapshot
-                          ? `${snapshot.repositories.length} repositories`
-                          : "Scanning repositories…"}
+                          ? t("{count} repositories", {count: snapshot.repositories.length})
+                          : t("Scanning repositories…")}
                         {snapshot && (
                           <>
                             {" "}
@@ -595,22 +588,22 @@ export default function App() {
                             >
                               {monitor.errors[active] ||
                               snapshot.diagnostics.length
-                                ? "Status incomplete"
+                                ? t("Status incomplete")
                                 : needsAttention
-                                  ? `${needsAttention} need attention`
-                                  : "All up to date"}
+                                  ? t("{count} need attention", {count: needsAttention})
+                                  : t("All up to date")}
                             </span>
                           </>
                         )}
                       </span>
                     </h2>
-                    <p className="mt-1 text-xs text-muted-foreground break-all font-mono">
+                    <p dir="ltr" className="mt-1 text-xs text-muted-foreground break-all font-mono">
                       {workspace.path}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <IconButton
-                      label="Refresh status"
+                      label={t("Refresh status")}
                       onClick={() => monitor.refresh(active)}
                       disabled={monitor.busy[active]}
                     >
@@ -625,46 +618,44 @@ export default function App() {
                       onClick={() => monitor.refresh(active, true)}
                     >
                       <ArrowDown className="size-4" />
-                      Fetch remotes
-                    </Button>
+                      {t("Fetch remotes")}</Button>
                     <Button variant="outline" size="sm" disabled={pulling || updating || !snapshot?.repositories.length} onClick={() => void pullRepositories(active, snapshot?.repositories ?? [], workspace.name)}>
-                      <ArrowDown className="size-4" />{pulling ? "Pulling…" : "Pull all"}
+                      <ArrowDown className="size-4" />{pulling ? t("Pulling…") : t("Pull all")}
                     </Button>
-                    {pullReport && <Button variant="ghost" size="sm" onClick={() => setShowPullReport(true)}>Pull results</Button>}
+                    {pullReport && <Button variant="ghost" size="sm" onClick={() => setShowPullReport(true)}>{t("Pull results")}</Button>}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                   <div className="flex gap-2">
                     <div className="relative">
-                      <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                      <Search className="absolute start-2.5 top-2.5 size-3.5 text-muted-foreground" />
                       <Input
-                        aria-label="Search repositories"
-                        placeholder="Find a repository…"
+                        aria-label={t("Search repositories")}
+                        placeholder={t("Find a repository…")}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="pl-8 h-8 w-52 text-xs"
+                        className="ps-8 h-8 w-52 text-xs"
                       />
                     </div>
                     <Select value={filter} onValueChange={setFilter}>
                       <SelectTrigger
-                        aria-label="Repository filter"
+                        aria-label={t("Repository filter")}
                         className="h-8 w-40 text-xs"
                       >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All repositories</SelectItem>
+                        <SelectItem value="all">{t("All repositories")}</SelectItem>
                         <SelectItem value="attention">
-                          Needs attention
-                        </SelectItem>
+                          {t("Needs attention")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                    Auto fetch{" "}
-                    <span className="text-muted-foreground/60">every 60s</span>
+                    {t("Auto fetch")}{" "}
+                    <span className="text-muted-foreground/60">{t("every 60s")}</span>
                     <Switch
-                      aria-label="Auto fetch remotes"
+                      aria-label={t("Auto fetch remotes")}
                       checked={workspace.autoFetch}
                       disabled={saving}
                       onCheckedChange={(value) =>
@@ -679,15 +670,14 @@ export default function App() {
                 </div>
                 {monitor.errors[active] && (
                   <Alert variant="destructive" className="mb-4">
-                    <AlertTitle>Status unavailable</AlertTitle>
+                    <AlertTitle>{t("Status unavailable")}</AlertTitle>
                     <AlertDescription>
-                      {monitor.errors[active]} Previous results may be outdated.
-                    </AlertDescription>
+                      {monitor.errors[active]} {t("Previous results may be outdated.")}</AlertDescription>
                   </Alert>
                 )}
                 {snapshot?.diagnostics.length ? (
                   <Alert className="mb-4">
-                    <AlertTitle>Some folders could not be scanned</AlertTitle>
+                    <AlertTitle>{t("Some folders could not be scanned")}</AlertTitle>
                     <AlertDescription>
                       {snapshot.diagnostics.join("\n")}
                     </AlertDescription>
@@ -697,24 +687,22 @@ export default function App() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/20 hover:bg-muted/20">
-                        <TableHead className="pl-4">Repository</TableHead>
-                        <TableHead>Branch</TableHead>
-                        <TableHead className="text-right">Changes</TableHead>
-                        <TableHead className="text-right">
+                        <TableHead className="ps-4">{t("Repository")}</TableHead>
+                        <TableHead>{t("Branch")}</TableHead>
+                        <TableHead className="text-end">{t("Changes")}</TableHead>
+                        <TableHead className="text-end">
                           <span className="inline-flex gap-1 items-center">
                             <ArrowUp className="size-3" />
-                            Push
-                          </span>
+                            {t("Push")}</span>
                         </TableHead>
-                        <TableHead className="text-right">
+                        <TableHead className="text-end">
                           <span className="inline-flex gap-1 items-center">
                             <ArrowDown className="size-3" />
-                            Pull
-                          </span>
+                            {t("Pull")}</span>
                         </TableHead>
-                        <TableHead className="pl-6">Next</TableHead>
+                        <TableHead className="ps-6">{t("Next")}</TableHead>
                         <TableHead className="w-12">
-                          <span className="sr-only">Open folder</span>
+                          <span className="sr-only">{t("Open folder")}</span>
                         </TableHead>
                       </TableRow>
                     </TableHeader>
@@ -735,59 +723,58 @@ export default function App() {
                               className="group cursor-pointer transition-colors duration-150 hover:bg-muted/40 motion-reduce:transition-none"
                               onClick={() => openRepositoryDetails(active, r)}
                             >
-                              <TableCell className="pl-4 py-2">
+                              <TableCell className="ps-4 py-2">
                                 <button
                                   type="button"
-                                  className="text-left font-medium hover:underline underline-offset-4 focus-visible:outline-ring rounded-sm"
+                                  className="text-start font-medium hover:underline underline-offset-4 focus-visible:outline-ring rounded-sm"
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     openRepositoryDetails(active, r);
                                   }}
                                 >
-                                  {r.name}
+                                  <bdi>{r.name}</bdi>
                                 </button>
                                 {r.error && (
                                   <span className="sr-only">
                                     {" "}
-                                    Status unavailable
-                                  </span>
+                                    {t("Status unavailable")}</span>
                                 )}
                               </TableCell>
                               <TableCell className="text-muted-foreground text-xs">
                                 <span className="flex items-center gap-1.5">
                                   <GitBranch className="size-3 shrink-0" />
-                                  {r.detached ? "Detached HEAD" : r.branch}
+                                  <bdi>{r.detached ? t("Detached HEAD") : r.branch}</bdi>
                                 </span>
                               </TableCell>
                               <TableCell
-                                className={`text-right font-mono tabular-nums ${r.changed ? "text-amber-400" : "text-muted-foreground"}`}
+                                className={`text-end font-mono tabular-nums ${r.changed ? "text-amber-400" : "text-muted-foreground"}`}
                               >
-                                {r.error ? "?" : r.changed || "—"}
+                                {r.error ? "?" : r.changed ? number(r.changed) : "—"}
                               </TableCell>
                               <TableCell
-                                className={`text-right font-mono tabular-nums ${r.ahead ? "text-blue-400" : "text-muted-foreground"}`}
+                                className={`text-end font-mono tabular-nums ${r.ahead ? "text-blue-400" : "text-muted-foreground"}`}
                                 title={
                                   r.ahead === null
-                                    ? "No tracked upstream count"
-                                    : "Commits ahead of upstream"
+                                    ? t("No tracked upstream count")
+                                    : t("Commits ahead of upstream")
                                 }
                               >
-                                {r.ahead === null ? "?" : r.ahead || "—"}
+                                {r.ahead === null ? "?" : r.ahead ? number(r.ahead) : "—"}
                               </TableCell>
                               <TableCell
-                                className={`text-right font-mono tabular-nums ${r.behind ? "text-blue-400" : "text-muted-foreground"}`}
+                                className={`text-end font-mono tabular-nums ${r.behind ? "text-blue-400" : "text-muted-foreground"}`}
                                 title={
                                   r.behind === null
-                                    ? "No tracked upstream count"
-                                    : "Commits behind upstream"
+                                    ? t("No tracked upstream count")
+                                    : t("Commits behind upstream")
                                 }
                               >
-                                {r.behind === null ? "?" : r.behind || "—"}
+                                {r.behind === null ? "?" : r.behind ? number(r.behind) : "—"}
                               </TableCell>
-                              <TableCell className="pl-6">
+                              <TableCell className="ps-6">
                                 <button
                                   type="button"
-                                  aria-label={`Details for ${r.name}`}
+                                  aria-label={t("Details for {name}", {name: r.name})}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     openRepositoryDetails(active, r);
@@ -798,7 +785,7 @@ export default function App() {
                               </TableCell>
                               <TableCell>
                                 <IconButton
-                                  label={`Open ${r.name} folder`}
+                                  label={t("Open {name} folder", {name: r.name})}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     void openRepository(active, r.path)
@@ -816,10 +803,10 @@ export default function App() {
                             className="h-40 text-center text-muted-foreground text-sm"
                           >
                             {!snapshot.repositories.length
-                              ? "No Git repositories found in this folder."
+                              ? t("No Git repositories found in this folder.")
                               : search
-                                ? "No repositories match your search."
-                                : "All repositories are up to date."}
+                                ? t("No repositories match your search.")
+                                : t("All repositories are up to date.")}
                           </TableCell>
                         </TableRow>
                       )}
@@ -833,47 +820,45 @@ export default function App() {
                     ) : (
                       <Check className="size-3" />
                     )}
-                    Status {timeLabel(snapshot?.scannedAt)}
-                    <span className="mx-1">·</span>Remotes{" "}
-                    {timeLabel(snapshot?.fetchedAt)}
+                    {t("Status {time}", {time: timeLabel(snapshot?.scannedAt)})}
+                    <span className="mx-1">·</span>{t("Remotes {time}", {time: timeLabel(snapshot?.fetchedAt)})}
                   </span>
                   <span>
-                    Click a repository for its Git graph, files, or outgoing commits <span className="mx-1">·</span>{" "}
-                    ? = no upstream count
-                  </span>
+                    {t("Click a repository for its Git graph, files, or outgoing commits")}<span className="mx-1">·</span>{" "}
+                    {t("? = no upstream count")}</span>
                 </div>
               </TabsContent>
             )}
           </Tabs>
         )}
-        <footer className="mt-auto px-6 py-3 border-t text-[11px] text-muted-foreground flex justify-between gap-3">
+        <footer className="mt-auto px-6 py-3 border-t text-[11px] text-muted-foreground flex flex-wrap justify-between gap-3">
           <span className="flex items-center gap-1.5">
             <Activity className="size-3" />
-            <span>v{version} ·</span>
-            {workspaces.length} workspace{workspaces.length === 1 ? "" : "s"}
+            <span dir="ltr">v{version} ·</span>
+            {plural(workspaces.length, "{count} workspace", "{count} workspaces")}
             {environment?.gitVersion && (
-              <span className="ml-1">· {environment.gitVersion}</span>
+              <span className="ms-1">· {environment.gitVersion}</span>
             )}
           </span>
-          <span>Local changes live · Remote counts update on fetch</span>
+          <span>{t("Local changes live · Remote counts update on fetch")}</span>
         </footer>
         <Sheet open={Boolean(detail)} onOpenChange={(open) => { if (!open) setDetail(null); }}>
           <SheetContent
-            side="left"
+            side={direction === "rtl" ? "right" : "left"}
             style={{ "--sheet-width": `${drawerWidth}vw` } as React.CSSProperties}
             className="flex flex-col gap-0 p-0 overflow-hidden"
           >
             <div
               role="separator"
-              aria-label="Resize repository details panel"
+              aria-label={t("Resize repository details panel")}
               aria-orientation="vertical"
               aria-valuemin={minDrawerWidth}
               aria-valuemax={maxDrawerWidth}
               aria-valuenow={Math.round(drawerWidth)}
-              aria-valuetext={`${Math.round(drawerWidth)}% of window width`}
+              aria-valuetext={t("{width}% of window width", {width: Math.round(drawerWidth)})}
               tabIndex={0}
-              title="Drag to resize · use arrow keys to adjust"
-              className="group absolute inset-y-12 right-0 z-50 hidden w-4 touch-none select-none cursor-col-resize items-center justify-center outline-none focus-visible:bg-primary/10 sm:flex"
+              title={t("Drag to resize · use arrow keys to adjust")}
+              className="group absolute inset-y-12 end-0 z-50 hidden w-4 touch-none select-none cursor-col-resize items-center justify-center outline-none focus-visible:bg-primary/10 sm:flex"
               onPointerDown={startDrawerResize}
               onPointerMove={moveDrawerResize}
               onPointerUp={finishDrawerResize}
@@ -883,19 +868,19 @@ export default function App() {
             >
               <span className="h-12 w-1 rounded-full bg-border transition-colors duration-150 group-hover:bg-primary group-focus-visible:bg-primary" />
             </div>
-            <SheetHeader className="px-5 pt-5 pb-3 shrink-0 pr-12">
-              <SheetTitle className="flex items-center gap-2"><FolderGit2 className="size-4" />{selected?.name ?? "Repository"}</SheetTitle>
-              <SheetDescription className="font-mono text-[11px] truncate" title={selected?.path}>{selected?.path}</SheetDescription>
+            <SheetHeader className="px-5 pt-5 pb-3 shrink-0 pe-12">
+              <SheetTitle className="flex items-center gap-2"><FolderGit2 className="size-4" />{selected?.name ?? t("Repository")}</SheetTitle>
+              <SheetDescription dir="ltr" className="font-mono text-[11px] truncate" title={selected?.path}>{selected?.path}</SheetDescription>
             </SheetHeader>
             {selected && detail && <>
               <div className="flex flex-wrap items-center gap-3 px-5 pb-3 shrink-0 text-xs">
-                <Status repo={selected} /><span className="text-muted-foreground flex items-center gap-1"><GitBranch className="size-3" />{selected.detached ? "Detached HEAD" : selected.branch}</span>
-                <span className="text-muted-foreground hidden sm:inline">{selected.upstream ?? "No upstream"}</span>
-                <Button variant="outline" size="sm" className="ml-auto" disabled={pulling} onClick={() => void pullRepositories(detail.workspaceId, [selected], selected.name)}><ArrowDown className="size-3.5" />Pull repository</Button>
-                <Button variant="ghost" size="sm" onClick={() => void openRepository(detail.workspaceId, selected.path)}><FolderOpen className="size-3.5" />Open folder</Button>
+                <Status repo={selected} /><span className="text-muted-foreground flex items-center gap-1"><GitBranch className="size-3" />{selected.detached ? t("Detached HEAD") : selected.branch}</span>
+                <span className="text-muted-foreground hidden sm:inline">{selected.upstream ?? t("No upstream")}</span>
+                <Button variant="outline" size="sm" className="ms-auto" disabled={pulling} onClick={() => void pullRepositories(detail.workspaceId, [selected], selected.name)}><ArrowDown className="size-3.5" />{t("Pull repository")}</Button>
+                <Button variant="ghost" size="sm" onClick={() => void openRepository(detail.workspaceId, selected.path)}><FolderOpen className="size-3.5" />{t("Open folder")}</Button>
               </div>
               <Tabs key={`${selected.path}:${detail.tab ?? "graph"}`} defaultValue={detail.tab ?? "graph"} className="flex-1 min-h-0 gap-0">
-                <TabsList className="mx-5 mb-2 shrink-0 w-fit"><TabsTrigger value="graph">Git graph</TabsTrigger><TabsTrigger value="changes">Version Control <span className="ml-1 text-muted-foreground">{selected.changed}</span></TabsTrigger><TabsTrigger value="push">Push <span className="ml-1 text-muted-foreground">{selected.ahead ?? "?"}</span></TabsTrigger></TabsList>
+                <TabsList className="mx-5 mb-2 shrink-0 w-fit"><TabsTrigger value="graph">{t("Git graph")}</TabsTrigger><TabsTrigger value="changes">{t("Version Control")}<span className="ms-1 text-muted-foreground">{number(selected.changed)}</span></TabsTrigger><TabsTrigger value="push">{t("Push")}<span className="ms-1 text-muted-foreground">{selected.ahead === null ? "?" : number(selected.ahead)}</span></TabsTrigger></TabsList>
                 <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory workspaceId={detail.workspaceId} path={selected.path} /></TabsContent>
                 <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
                 <TabsContent value="push" className="m-0 flex flex-1 min-h-0 border-t"><PushPreview workspaceId={detail.workspaceId} path={selected.path} upstream={selected.upstream} behind={selected.behind} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onPushed={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
@@ -905,12 +890,12 @@ export default function App() {
         </Sheet>
         <Dialog open={showPullReport} onOpenChange={setShowPullReport}>
           <DialogContent className="sm:max-w-xl max-h-[85vh] flex flex-col">
-            <DialogHeader><DialogTitle>{pullReport?.title ?? "Pull results"}</DialogTitle><DialogDescription>Fast-forward updates. Repositories with local changes, no upstream, or divergent history need attention.</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>{pullReport ? t("Pull · {name}", {name: pullReport.title}) : t("Pull results")}</DialogTitle><DialogDescription>{t("Fast-forward updates. Repositories with local changes, no upstream, or divergent history need attention.")}</DialogDescription></DialogHeader>
             {pullReport && <>
-              <p className="text-xs text-muted-foreground flex gap-2 items-center">{pulling && <LoaderCircle className="size-3 animate-spin" />}{pullReport.results.length}/{pullReport.total} processed · {pullReport.results.filter((r) => r.status === "Updated").length} updated · {pullReport.results.filter((r) => r.status === "Skipped").length} skipped · {pullReport.results.filter((r) => r.status === "Failed").length} failed</p>
+              <p className="text-xs text-muted-foreground flex gap-2 items-center">{pulling && <LoaderCircle className="size-3 animate-spin" />}{t("{done}/{total} processed · {updated} updated · {skipped} skipped · {failed} failed", {done: pullReport.results.length, total: pullReport.total, updated: pullReport.results.filter(r => r.status === "Updated").length, skipped: pullReport.results.filter(r => r.status === "Skipped").length, failed: pullReport.results.filter(r => r.status === "Failed").length})}</p>
               <div className="overflow-auto min-h-0 rounded-md border divide-y">
-                {pullReport.results.map((result, i) => <div key={i} className="p-3 text-xs"><div className="flex justify-between gap-3"><span className="font-medium">{result.name}</span><span className={result.status === "Updated" ? "text-emerald-500" : result.status === "Skipped" ? "text-amber-500" : "text-destructive"}>{result.status}</span></div><p className="text-muted-foreground mt-1 whitespace-pre-wrap break-words">{result.message}</p></div>)}
-                {!pullReport.results.length && <p className="p-4 text-xs text-muted-foreground">Updating repositories…</p>}
+                {pullReport.results.map((result, i) => <div key={i} className="p-3 text-xs"><div className="flex justify-between gap-3"><bdi className="font-medium">{result.name}</bdi><span className={result.status === "Updated" ? "text-emerald-500" : result.status === "Skipped" ? "text-amber-500" : "text-destructive"}>{t(result.status)}</span></div><p dir="auto" className="text-muted-foreground mt-1 whitespace-pre-wrap break-words">{t(result.message)}</p></div>)}
+                {!pullReport.results.length && <p className="p-4 text-xs text-muted-foreground">{t("Updating repositories…")}</p>}
               </div>
             </>}
           </DialogContent>

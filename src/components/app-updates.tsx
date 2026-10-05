@@ -1,3 +1,4 @@
+import { date, t } from "@/lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, LoaderCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -91,37 +92,37 @@ export function AppUpdates({ enabled, blocked, onInstalling }: { enabled: boolea
       setPhase("restarting");
       await updater.restart();
     } catch (e) {
-      if (active.current) { setError(`Update failed: ${String(e)}`); setPhase("idle"); }
+      if (active.current) { setError(t("Update failed: {error}", {error: String(e)})); setPhase("idle"); }
     } finally { busy.current = false; onInstalling(false); }
   }
 
   const percent = progress.total > 0 ? Math.min(100, Math.round(progress.bytes / progress.total * 100)) : null;
   return <>
-    <Button variant={available ? "default" : "ghost"} size="sm" aria-label={available ? `Update available: ${available.version}` : "App updates"} onClick={() => setOpen(true)}>
-      <Download className="size-3.5" /><span className="hidden sm:inline">{available ? `Update ${available.version}` : "Updates"}</span>
+    <Button variant={available ? "default" : "ghost"} size="sm" aria-label={available ? t("Update available: {version}", {version: available.version}) : t("App updates")} onClick={() => setOpen(true)}>
+      <Download className="size-3.5" /><span className="hidden sm:inline">{available ? t("Update {version}", {version: available.version}) : t("Updates")}</span>
     </Button>
     <Dialog open={open} onOpenChange={(value) => { if (!updating) setOpen(value); }}>
       <DialogContent className="sm:max-w-md" onEscapeKeyDown={(e) => { if (updating) e.preventDefault(); }} onPointerDownOutside={(e) => { if (updating) e.preventDefault(); }}>
-        <DialogHeader><DialogTitle>{available ? "Update available" : "App updates"}</DialogTitle><DialogDescription>Current version: {version}. Updates are checked at startup and every six hours.</DialogDescription></DialogHeader>
-        {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+        <DialogHeader><DialogTitle>{available ? t("Update available") : t("App updates")}</DialogTitle><DialogDescription>{t("Current version: {version}. Updates are checked at startup and every six hours.", {version})}</DialogDescription></DialogHeader>
+        {error && <Alert variant="destructive"><AlertDescription>{t(error)}</AlertDescription></Alert>}
         {available ? <div className="space-y-3">
           <p className="text-sm font-medium">GitOrbit {available.version}</p>
           {available.body && <div className="max-h-52 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground rounded-md border p-3">{available.body}</div>}
-          <p className="text-xs text-muted-foreground">Download and install the signed release, then restart. Your workspaces and appearance settings are kept.</p>
+          <p className="text-xs text-muted-foreground">{t("Download and install the signed release, then restart. Your workspaces and appearance settings are kept.")}</p>
           {updating && <div className="space-y-2" role="status">
-            <p className="text-xs flex gap-2 items-center"><LoaderCircle className="size-3.5 animate-spin" />{phase === "downloading" ? `Downloading${percent === null ? "…" : ` ${percent}%`}` : phase === "installing" ? "Verifying and installing…" : "Restarting…"}</p>
-            {phase === "downloading" && percent !== null && <div role="progressbar" aria-label="Update download" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} className="h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${percent}%` }} /></div>}
+            <p className="text-xs flex gap-2 items-center"><LoaderCircle className="size-3.5 animate-spin" />{phase === "downloading" ? t("Downloading… {progress}", {progress: percent === null ? "" : `${percent}%`}) : phase === "installing" ? t("Verifying and installing…") : t("Restarting…")}</p>
+            {phase === "downloading" && percent !== null && <div role="progressbar" aria-label={t("Update download")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} className="h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${percent}%` }} /></div>}
           </div>}
-          {blocked && !updating && <p className="text-xs text-amber-500">Wait for the current Git operation to finish before updating.</p>}
-          <Button className="w-full" disabled={blocked || phase !== "idle"} onClick={() => void install()}><Download className="size-4" />Update &amp; restart</Button>
-        </div> : phase === "checking" ? <p role="status" className="text-sm text-muted-foreground">Checking for updates…</p> : !error && checkedAt ? <p className="text-sm">You are up to date.</p> : <p className="text-sm text-muted-foreground">Check for a newer release.</p>}
+          {blocked && !updating && <p className="text-xs text-amber-500">{t("Wait for the current Git operation to finish before updating.")}</p>}
+          <Button className="w-full" disabled={blocked || phase !== "idle"} onClick={() => void install()}><Download className="size-4" />{t("Update & restart")}</Button>
+        </div> : phase === "checking" ? <p role="status" className="text-sm text-muted-foreground">{t("Checking for updates…")}</p> : !error && checkedAt ? <p className="text-sm">{t("You are up to date.")}</p> : <p className="text-sm text-muted-foreground">{t("Check for a newer release.")}</p>}
         <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
-          <span>{checkedAt ? `Last checked ${new Date(checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Not checked yet"}</span>
-          <Button variant="outline" size="sm" disabled={!enabled || phase !== "idle"} onClick={() => void checkNow()}><RefreshCw className="size-3.5" />Check again</Button>
+          <span>{checkedAt ? t("Last checked {time}", {time: date(new Date(checkedAt), {hour: "2-digit", minute: "2-digit"})}) : t("Not checked yet")}</span>
+          <Button variant="outline" size="sm" disabled={!enabled || phase !== "idle"} onClick={() => void checkNow()}><RefreshCw className="size-3.5" />{t("Check again")}</Button>
         </div>
-        <fieldset className="border-t pt-3"><legend className="text-xs font-medium">Update connection</legend><div className="grid grid-cols-2 gap-2 mt-2">
-          {(["system", "direct"] as const).map((mode) => <Button key={mode} variant={connection === mode ? "default" : "outline"} size="sm" disabled={!enabled || phase !== "idle"} aria-pressed={connection === mode} onClick={() => void changeConnection(mode)}>{mode === "system" ? "System proxy" : "Direct connection"}</Button>)}
-        </div><p className="text-[11px] text-muted-foreground mt-2">Applies only to update checks and downloads.</p></fieldset>
+        <fieldset className="border-t pt-3"><legend className="text-xs font-medium">{t("Update connection")}</legend><div className="grid grid-cols-2 gap-2 mt-2">
+          {(["system", "direct"] as const).map((mode) => <Button key={mode} variant={connection === mode ? "default" : "outline"} size="sm" disabled={!enabled || phase !== "idle"} aria-pressed={connection === mode} onClick={() => void changeConnection(mode)}>{mode === "system" ? t("System proxy") : t("Direct connection")}</Button>)}
+        </div><p className="text-[11px] text-muted-foreground mt-2">{t("Applies only to update checks and downloads.")}</p></fieldset>
       </DialogContent>
     </Dialog>
   </>;

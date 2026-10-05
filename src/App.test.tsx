@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { LanguageProvider, setLanguage, t } from "./lib/i18n";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -240,6 +241,24 @@ describe("GitOrbit", () => {
     await waitFor(() => expect(native.changes).toHaveBeenCalledTimes(2));
     expect(screen.getByLabelText("Commit message")).toHaveValue("Keep this message");
     expect(screen.getByText("Pre-commit hook rejected the commit.")).toBeInTheDocument();
+  });
+  it("switches Persian, Arabic and English without losing selected files or a draft commit", async () => {
+    const user = userEvent.setup();
+    render(<LanguageProvider><App /></LanguageProvider>);
+    await user.click(await screen.findByRole("button", {name: "api"}));
+    await user.click(screen.getByRole("tab", {name: /Version Control/}));
+    await user.click(await screen.findByRole("checkbox", {name: "Select changes src/server.ts"}));
+    await user.type(screen.getByLabelText("Commit message"), "fix: keep my draft");
+    const loads = vi.mocked(native.changes).mock.calls.length;
+    for (const language of ["fa", "ar", "en"] as const) {
+      act(() => setLanguage(language));
+      expect(document.documentElement.dir).toBe(language === "en" ? "ltr" : "rtl");
+      expect(screen.getByLabelText(t("Commit message"))).toHaveValue("fix: keep my draft");
+      expect(screen.getByRole("checkbox", {name: t("Select {group} {path}", {group: t("changes"), path: "src/server.ts"})})).toBeChecked();
+      expect(document.querySelector('[data-slot="sheet-content"]')).toHaveAttribute("data-side", language === "en" ? "left" : "right");
+    }
+    expect(native.changes).toHaveBeenCalledTimes(loads);
+    expect(native.action).not.toHaveBeenCalled();
   });
   it("stages only selected files and commits only the existing index", async () => {
     const user = userEvent.setup();

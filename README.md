@@ -5,7 +5,7 @@
   <p>A compact desktop Git monitor built with Tauri, React, and shadcn/ui.</p>
   <p>
     <a href="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml"><img src="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml/badge.svg" alt="Desktop builds" /></a>
-    <a href="https://github.com/sajadjanat/gitorbit/releases"><img src="https://img.shields.io/badge/version-0.4.0-blue" alt="Version 0.4.0" /></a>
+    <a href="https://github.com/sajadjanat/gitorbit/releases"><img src="https://img.shields.io/badge/version-0.5.0-blue" alt="Version 0.5.0" /></a>
     <img src="https://img.shields.io/badge/Tauri-2-24c8db?logo=tauri&logoColor=white" alt="Tauri 2" />
     <img src="https://img.shields.io/badge/UI-shadcn%2Fui-18181b?logo=shadcnui&logoColor=white" alt="shadcn/ui" />
   </p>
@@ -238,13 +238,17 @@ The Rust scanner discovers repositories and reads `git status --porcelain=v2`. I
 
 **Where are tabs saved?** In `workspaces.json` under the OS app configuration directory for `ir.sepehra.workspace-monitor`. Closing a tab stops monitoring it without deleting its folder.
 
+**Which languages are supported?** English, Persian (فارسی), and Arabic (العربية). Choose a language in the header; it changes immediately and survives restarts. Persian and Arabic mirror the layout, tabs, dialogs, and Git graph. File paths, hashes, and code diffs keep their original direction. Switching languages preserves open workspaces, selected files, and draft commit messages.
+
+![GitOrbit in Persian with right-to-left layout and dark mode](docs/images/gitorbit-persian-dark.png)
+
 **Where are themes saved?** In the app's local storage. System mode follows OS appearance changes; palette and accent settings survive restarts.
 
 **How does Git installation work?** The button uses Windows Package Manager, Homebrew/Apple developer tools, or a supported Linux package manager through `pkexec`. The OS handles any permission prompts. If no supported installer is available, the app opens the official Git download page. Installation starts only after a click.
 
 ## Contributing
 
-[Report a bug or propose a feature](https://github.com/sajadjanat/gitorbit/issues). For code changes, describe the problem, keep the compact interface in mind, and run the relevant checks before opening a pull request. UI copy stays in English.
+[Report a bug or propose a feature](https://github.com/sajadjanat/gitorbit/issues). For code changes, describe the problem, keep the compact interface in mind, and run the relevant checks before opening a pull request. Add UI translations for English, Persian, and Arabic in `src/lib/messages.ts`, with matching interpolation fields. Documentation remains in English.
 
 ---
 

@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { Fragment, useEffect, useRef } from "react";
 
 type DiffLine = { number: number; text: string };
@@ -135,14 +136,14 @@ function CodeCell({
   }
   return (
     <>
-      <div className={`select-none border-b border-border/40 px-2 text-right text-muted-foreground/70 ${separator ? "border-l border-border/70" : ""} ${style}`}>
+      <div className={`select-none border-b border-border/40 px-2 text-end text-muted-foreground/70 ${separator ? "border-l border-border/70" : ""} ${style}`}>
         <span className="flex justify-between gap-1">
           <span>{line?.number ?? ""}</span>
           <span aria-hidden="true">{line && kind === "change" ? side === "old" ? "−" : "+" : ""}</span>
         </span>
       </div>
       <div className={`border-b border-border/40 px-3 ${separator ? "border-l border-border/70" : ""} ${style}`}>
-        <code dir="auto" className="diff-code block whitespace-pre">{content}</code>
+        <code dir="ltr" className="diff-code block whitespace-pre">{content}</code>
       </div>
     </>
   );
@@ -161,8 +162,8 @@ export function SideBySideDiff({
 }) {
   const isNewFile = explicitlyNew || text.startsWith("--- /dev/null") || text.includes("\n--- /dev/null\n");
   const isDeletedFile = text.includes("\n+++ /dev/null");
-  const beforeLabel = isNewFile ? "/dev/null" : staged ? "HEAD" : "Index";
-  const afterLabel = isDeletedFile ? "/dev/null" : staged ? "Index · staged" : "Working tree";
+  const beforeLabel = isNewFile ? "/dev/null" : staged ? "HEAD" : t("Index");
+  const afterLabel = isDeletedFile ? "/dev/null" : staged ? t("Index · staged") : t("Working tree");
   const rows = parseDiff(text);
   const oldPane = useRef<HTMLDivElement>(null);
   const newPane = useRef<HTMLDivElement>(null);
@@ -209,45 +210,45 @@ export function SideBySideDiff({
   }
 
   return (
-    <div className="h-full min-h-0 min-w-0 font-mono text-[14px] leading-6" aria-label={isNewFile ? "New file contents" : "Side-by-side diff"}>
+    <div className="h-full min-h-0 min-w-0 font-mono text-[14px] leading-6" aria-label={isNewFile ? t("New file contents") : t("Side-by-side diff")}>
       {isNewFile ? (
         <div className="flex h-full min-h-0 flex-col">
-          <div className="shrink-0 border-b border-border bg-muted px-4 py-2 font-sans text-xs font-medium text-muted-foreground shadow-sm">New file · {staged ? "Index · staged" : "Working tree"}</div>
-          <div className="diff-viewport min-h-0 min-w-0 flex-1 overflow-auto">
+          <div className="shrink-0 border-b border-border bg-muted px-4 py-2 font-sans text-xs font-medium text-muted-foreground shadow-sm">{t("New file ·")}{" "}{staged ? t("Index · staged") : t("Working tree")}</div>
+          <div dir="ltr" className="diff-viewport min-h-0 min-w-0 flex-1 overflow-auto">
             <div className="grid w-max min-w-full grid-cols-[3.5rem_max-content]">{renderNewFileRows()}</div>
-            {truncated && <p className="w-max min-w-full border-t px-3 py-2 font-sans text-xs text-amber-500">Preview truncated at 512 KB.</p>}
+            {truncated && <p className="w-max min-w-full border-t px-3 py-2 font-sans text-xs text-amber-500">{t("Preview truncated at 512 KB.")}</p>}
           </div>
         </div>
       ) : (
-        <div className="grid h-full min-h-0 min-w-0 grid-cols-2 divide-x divide-border">
-          <section className="flex min-h-0 min-w-0 flex-col" aria-label={`${beforeLabel} version`}>
+        <div dir="ltr" className="grid h-full min-h-0 min-w-0 grid-cols-2 divide-x divide-border">
+          <section className="flex min-h-0 min-w-0 flex-col" aria-label={t("{label} version", {label: beforeLabel})}>
             <div className="shrink-0 border-b border-border bg-muted px-3 py-2 font-sans text-xs font-medium text-muted-foreground shadow-sm">{beforeLabel}</div>
             <div
               ref={oldPane}
-              className="diff-viewport min-h-0 min-w-0 flex-1 overflow-auto"
-              aria-label={`${beforeLabel} code`}
+              dir="ltr" className="diff-viewport min-h-0 min-w-0 flex-1 overflow-auto"
+              aria-label={t("{label} code", {label: beforeLabel})}
               onScroll={(event) => {
                 const peer = newPane.current;
                 if (peer && peer.scrollTop !== event.currentTarget.scrollTop) peer.scrollTop = event.currentTarget.scrollTop;
               }}
             >
               <div className="grid w-max min-w-full grid-cols-[3.5rem_max-content]">{renderRows("old")}</div>
-              {truncated && <p className="w-max min-w-full border-t px-3 py-2 font-sans text-xs text-amber-500">Preview truncated at 512 KB.</p>}
+              {truncated && <p className="w-max min-w-full border-t px-3 py-2 font-sans text-xs text-amber-500">{t("Preview truncated at 512 KB.")}</p>}
             </div>
           </section>
-          <section className="flex min-h-0 min-w-0 flex-col" aria-label={`${afterLabel} version`}>
+          <section className="flex min-h-0 min-w-0 flex-col" aria-label={t("{label} version", {label: afterLabel})}>
             <div className="shrink-0 border-b border-border bg-muted px-3 py-2 font-sans text-xs font-medium text-muted-foreground shadow-sm">{afterLabel}</div>
             <div
               ref={newPane}
-              className="diff-viewport min-h-0 min-w-0 flex-1 overflow-auto"
-              aria-label={`${afterLabel} code`}
+              dir="ltr" className="diff-viewport min-h-0 min-w-0 flex-1 overflow-auto"
+              aria-label={t("{label} code", {label: afterLabel})}
               onScroll={(event) => {
                 const peer = oldPane.current;
                 if (peer && peer.scrollTop !== event.currentTarget.scrollTop) peer.scrollTop = event.currentTarget.scrollTop;
               }}
             >
               <div className="grid w-max min-w-full grid-cols-[3.5rem_max-content]">{renderRows("new")}</div>
-              {truncated && <p className="w-max min-w-full border-t px-3 py-2 font-sans text-xs text-amber-500">Preview truncated at 512 KB.</p>}
+              {truncated && <p className="w-max min-w-full border-t px-3 py-2 font-sans text-xs text-amber-500">{t("Preview truncated at 512 KB.")}</p>}
             </div>
           </section>
         </div>

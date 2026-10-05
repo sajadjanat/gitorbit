@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -98,7 +99,7 @@ export const native = {
   scan: (workspaceId: string, fetch: boolean) =>
     invoke<Snapshot>("scan_workspace", { workspaceId, fetch }),
   chooseFolders: () =>
-    open({ directory: true, multiple: true, title: "Add workspaces" }),
+    open({ directory: true, multiple: true, title: t("Add workspace") }),
   onChange: (callback: (id: string) => void) =>
     listen<string>("workspace-invalidated", (e) => callback(e.payload)),
   installGit: () => invoke<string>("install_git"),
