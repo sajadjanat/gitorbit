@@ -16,4 +16,3 @@ The product is GitOrbit, the npm package is gitorbit, and the repository is http
 On Windows, verify the migration after building an NSIS bundle with `./scripts/test-installer-migration.ps1`.
 
 The generated images are raster originals. Previous concepts are retained locally outside the published brand assets.
-

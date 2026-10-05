@@ -62,4 +62,3 @@ Var GitOrbitLegacyInstall
     Pop $0
   ${EndIf}
 !macroend
-

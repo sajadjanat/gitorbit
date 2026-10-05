@@ -134,4 +134,3 @@ Get-Content -LiteralPath $testReport
 if ($testProcess.ExitCode -ne 0) { throw "Migration verification failed: $($testProcess.ExitCode) checks." }
 if ((Get-FileHash -LiteralPath $testState).Hash -ne $testStateHash) { throw 'Legacy workspace state changed.' }
 Write-Output 'PASS: legacy workspace state preserved'
-
