@@ -256,6 +256,12 @@ describe("GitOrbit", () => {
       expect(screen.getByLabelText(t("Commit message"))).toHaveValue("fix: keep my draft");
       expect(screen.getByRole("checkbox", {name: t("Select {group} {path}", {group: t("changes"), path: "src/server.ts"})})).toBeChecked();
       expect(document.querySelector('[data-slot="sheet-content"]')).toHaveAttribute("data-side", language === "en" ? "left" : "right");
+      const resize = screen.getByRole("separator");
+      const before = Number(resize.getAttribute("aria-valuenow"));
+      fireEvent.keyDown(resize, {key: "ArrowRight"});
+      expect(resize).toHaveAttribute("aria-valuenow", String(before + (language === "en" ? 3 : -3)));
+      fireEvent.keyDown(resize, {key: "ArrowLeft"});
+      expect(resize).toHaveAttribute("aria-valuenow", String(before));
     }
     expect(native.changes).toHaveBeenCalledTimes(loads);
     expect(native.action).not.toHaveBeenCalled();

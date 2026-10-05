@@ -43,7 +43,13 @@ The main config contains the public update key and a HTTPS GitHub Releases endpo
 
 The `check_app_update` command constructs the official updater using the saved system or direct connection, then registers the update in the webview resource table. Downloads, signature checks, installation and cleanup use the official plugin. Connection mode is saved in `updates.json` in the app configuration directory. TLS and signatures remain verified.
 
-The `Publish signed desktop updates` workflow runs on version tags or manual dispatch. It builds Windows NSIS, macOS universal app/DMG, and Linux AppImage/DEB packages, signs updater artifacts, and merges platform entries into `latest.json`. Platform jobs run sequentially because they share that manifest. Only this workflow has release write permissions.
+The `Publish signed desktop updates` workflow runs on version tags or manual dispatch. It builds Windows NSIS, macOS universal app/DMG, and Linux AppImage/DEB packages in parallel and signs updater artifacts. After every platform succeeds, a single publisher verifies the packages and signatures, assembles all nine platform entries in `latest.json`, verifies the uploaded manifest, and publishes the draft. Only this workflow has release write permissions.
+
+## Languages and direction
+
+The language selector supports `en`, `fa`, and `ar`. `src/lib/i18n.tsx` saves the choice under `gitorbit-language`, updates the document language/direction, and supplies Radix's direction context, including portalled dialogs and menus. The app updates without remounting repository controls. New UI copy needs both translations in `src/lib/messages.ts`; preserve named interpolation fields exactly. Tests check catalog parity and literal translation-key coverage.
+
+Use logical spacing/alignment (`ms`, `me`, `ps`, `pe`, `text-start`, `border-e`) for interface layout. Keep file paths, hashes, code, and diff pane ordering independently LTR; isolate interpolated Git metadata to avoid bidirectional punctuation errors. Commit dates use localized formatting with the Gregorian calendar. Document screenshots use synthetic workspaces.
 
 Repository Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` hold the encrypted signing key and its password. Never commit these values. Keep the original key: changing it would prevent already-installed apps from accepting future releases.
 
