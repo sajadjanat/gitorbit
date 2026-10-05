@@ -7,10 +7,12 @@ The user's reference replaces the previous monochrome direction. The O is a blac
 - `gitorbit-wordmark-v2.png`: horizontal GitOrbit wordmark with shaped ivory letterforms, angled terminals and a single black-hole O.
 - `gitorbit-app-icon-v2.png`: standalone symbol, with margins around the projecting disk tips.
 - `../../public/gitorbit-icon-v2.png`: active favicon asset.
-- `../../public/gitorbit-wordmark-v2.png`: active application header logotype.
+- `../../public/gitorbit-wordmark-v2.png`: original bitmap used by the application header logotype.
 - `../../src-tauri/icons/`: desktop PNG sizes, ICO and ICNS generated with `npx tauri icon assets/brand/gitorbit-app-icon-v2.png`.
 
 These are raster originals, not editable vector masters. Generated originals remain in the Codex image directory. Previous concepts are retained locally outside the published brand assets.
+
+The compact application header uses `src/components/git-orbit-wordmark.tsx` to render the original bitmap through SVG alpha filters. The exterior field is transparent, the central black-hole shadow remains opaque, and the letter silhouettes use black in light mode and ivory in dark mode. The header adds 8px horizontal and 4px vertical padding around a 144px-wide mark. Both modes were visually checked in the application preview; the README artwork and native icon retain their original backgrounds.
 
 ## Craft and review
 

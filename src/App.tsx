@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { GitOrbitWordmark } from "@/components/git-orbit-wordmark";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -381,12 +382,8 @@ export default function App() {
       <div className="min-h-screen bg-background text-foreground flex flex-col">
         <header className="h-14 shrink-0 border-b flex items-center justify-between px-6 gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <h1 className="relative h-10 w-44 sm:w-48 shrink-0 overflow-hidden rounded-md bg-[#08090c]">
-              <img
-                src="/gitorbit-wordmark-v2.png"
-                alt="GitOrbit"
-                className="absolute left-1/2 top-[calc(50%+4px)] w-52 sm:w-56 max-w-none -translate-x-1/2 -translate-y-1/2"
-              />
+            <h1 aria-label="GitOrbit" className="shrink-0 px-2 py-1">
+              <GitOrbitWordmark />
             </h1>
             <Badge
               variant="outline"
