@@ -15,6 +15,9 @@ describe("language and direction", () => {
     expect(document.documentElement).toHaveAttribute("lang", "fa");
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     setLanguage("ar"); expect(readLanguage()).toBe("ar");
+    setLanguage("zh"); expect(readLanguage()).toBe("zh");
+    expect(document.documentElement).toHaveAttribute("lang", "zh-CN");
+    expect(document.documentElement).toHaveAttribute("dir", "ltr");
     localStorage.setItem("gitorbit-language", "invalid");
     expect(readLanguage()).toBe("en");
     setLanguage("en"); expect(document.documentElement.dir).toBe("ltr");
@@ -29,7 +32,7 @@ describe("language and direction", () => {
     expect(translate("{count} repositories", "fa", {count: 12})).toContain("۱۲");
     setLanguage("fa"); expect(date(new Date("2026-10-05T00:00:00Z"), {year: "numeric"})).toContain("۲۰۲۶");
   });
-  it.each(["fa", "ar"] as const)("keeps code and before/after panes LTR in %s", (language) => {
+  it.each(["fa", "ar", "zh"] as const)("keeps code and before/after panes LTR in %s", (language) => {
     function Fixture() { useLanguage(); return <SideBySideDiff staged={false} truncated={false} text={"--- a/code\n+++ b/code\n@@ -1 +1 @@\n-const value = 1;\n+const value = 2;\n"} />; }
     render(<LanguageProvider><Fixture /></LanguageProvider>);
     act(() => setLanguage(language));
@@ -41,10 +44,10 @@ describe("language and direction", () => {
 });
 
 describe("translation catalog", () => {
-  it("has matching interpolation fields in both complete translations", () => {
+  it("has matching interpolation fields in all complete translations", () => {
     const fields = (value: string) => [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort();
     for (const [key, values] of Object.entries(messages)) {
-      for (const language of ["fa", "ar"] as const) {
+      for (const language of ["fa", "ar", "zh"] as const) {
         expect(values[language].trim(), `${key}: ${language}`).not.toBe("");
         expect(fields(values[language]), `${key}: ${language}`).toEqual(fields(key));
       }

@@ -2,20 +2,20 @@ import { useSyncExternalStore, type ReactNode } from "react";
 import { Direction } from "radix-ui";
 import { messages } from "./messages";
 
-export type Language = "en" | "fa" | "ar";
-export const languages = [{id: "en", name: "English"}, {id: "fa", name: "فارسی"}, {id: "ar", name: "العربية"}] as const;
+export type Language = "en" | "fa" | "ar" | "zh";
+export const languages = [{id: "en", name: "English"}, {id: "fa", name: "فارسی"}, {id: "ar", name: "العربية"}, {id: "zh", name: "简体中文"}] as const;
 const storageKey = "gitorbit-language";
 const listeners = new Set<() => void>();
 export function readLanguage(): Language {
-  try { const value = localStorage.getItem(storageKey); return value === "fa" || value === "ar" ? value : "en"; }
+  try { const value = localStorage.getItem(storageKey); return value === "fa" || value === "ar" || value === "zh" ? value : "en"; }
   catch { return "en"; }
 }
 let current: Language = readLanguage();
-export const languageDirection = (language: Language): "ltr" | "rtl" => language === "en" ? "ltr" : "rtl";
-export const languageLocale = (language: Language) => ({en: "en-GB", fa: "fa-IR", ar: "ar-EG"})[language];
+export const languageDirection = (language: Language): "ltr" | "rtl" => language === "fa" || language === "ar" ? "rtl" : "ltr";
+export const languageLocale = (language: Language) => ({en: "en-GB", fa: "fa-IR", ar: "ar-EG", zh: "zh-CN"})[language];
 function applyLanguage() {
   if (typeof document === "undefined") return;
-  document.documentElement.lang = current;
+  document.documentElement.lang = current === "zh" ? "zh-CN" : current;
   document.documentElement.dir = languageDirection(current);
 }
 applyLanguage();
@@ -41,7 +41,7 @@ export function translate(key: string, language: Language, values: Record<string
     if (replacement === undefined) return match;
     const text = typeof replacement === "number" ? new Intl.NumberFormat(languageLocale(language)).format(replacement) : replacement;
     // Keep interpolated paths/branch names and numbers from affecting the sentence's direction.
-    return language === "en" ? text : `\u2068${text}\u2069`;
+    return languageDirection(language) === "ltr" ? text : `\u2068${text}\u2069`;
   });
 }
 export const t = (key: string, values?: Record<string, string | number>): string => {

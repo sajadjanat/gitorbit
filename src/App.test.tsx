@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { LanguageProvider, setLanguage, t } from "./lib/i18n";
+import { LanguageProvider, languageDirection, setLanguage, t } from "./lib/i18n";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -242,7 +242,7 @@ describe("GitOrbit", () => {
     expect(screen.getByLabelText("Commit message")).toHaveValue("Keep this message");
     expect(screen.getByText("Pre-commit hook rejected the commit.")).toBeInTheDocument();
   });
-  it("switches Persian, Arabic and English without losing selected files or a draft commit", async () => {
+  it("switches all four languages without losing selected files or a draft commit", async () => {
     const user = userEvent.setup();
     render(<LanguageProvider><App /></LanguageProvider>);
     await user.click(await screen.findByRole("button", {name: "api"}));
@@ -250,16 +250,16 @@ describe("GitOrbit", () => {
     await user.click(await screen.findByRole("checkbox", {name: "Select changes src/server.ts"}));
     await user.type(screen.getByLabelText("Commit message"), "fix: keep my draft");
     const loads = vi.mocked(native.changes).mock.calls.length;
-    for (const language of ["fa", "ar", "en"] as const) {
+    for (const language of ["fa", "ar", "zh", "en"] as const) {
       act(() => setLanguage(language));
-      expect(document.documentElement.dir).toBe(language === "en" ? "ltr" : "rtl");
+      expect(document.documentElement.dir).toBe(languageDirection(language));
       expect(screen.getByLabelText(t("Commit message"))).toHaveValue("fix: keep my draft");
       expect(screen.getByRole("checkbox", {name: t("Select {group} {path}", {group: t("changes"), path: "src/server.ts"})})).toBeChecked();
-      expect(document.querySelector('[data-slot="sheet-content"]')).toHaveAttribute("data-side", language === "en" ? "left" : "right");
+      expect(document.querySelector('[data-slot="sheet-content"]')).toHaveAttribute("data-side", languageDirection(language) === "ltr" ? "left" : "right");
       const resize = screen.getByRole("separator");
       const before = Number(resize.getAttribute("aria-valuenow"));
       fireEvent.keyDown(resize, {key: "ArrowRight"});
-      expect(resize).toHaveAttribute("aria-valuenow", String(before + (language === "en" ? 3 : -3)));
+      expect(resize).toHaveAttribute("aria-valuenow", String(before + (languageDirection(language) === "ltr" ? 3 : -3)));
       fireEvent.keyDown(resize, {key: "ArrowLeft"});
       expect(resize).toHaveAttribute("aria-valuenow", String(before));
     }

@@ -1,3 +1,5 @@
+<p align="center"><strong>English</strong> · <a href="README.fa.md">فارسی</a> · <a href="README.ar.md">العربية</a> · <a href="README.zh-CN.md">简体中文</a></p>
+
 <div align="center">
   <img src="assets/brand/gitorbit-wordmark-v2.png" alt="GitOrbit — tilted black-hole O logotype" width="520" />
   <h1>GitOrbit</h1>
@@ -5,7 +7,7 @@
   <p>A compact desktop Git monitor built with Tauri, React, and shadcn/ui.</p>
   <p>
     <a href="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml"><img src="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml/badge.svg" alt="Desktop builds" /></a>
-    <a href="https://github.com/sajadjanat/gitorbit/releases"><img src="https://img.shields.io/badge/version-0.5.0-blue" alt="Version 0.5.0" /></a>
+    <a href="https://github.com/sajadjanat/gitorbit/releases"><img src="https://img.shields.io/badge/version-0.5.1-blue" alt="Version 0.5.1" /></a>
     <img src="https://img.shields.io/badge/Tauri-2-24c8db?logo=tauri&logoColor=white" alt="Tauri 2" />
     <img src="https://img.shields.io/badge/UI-shadcn%2Fui-18181b?logo=shadcnui&logoColor=white" alt="shadcn/ui" />
   </p>
@@ -39,6 +41,7 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 | **Push preview** | Review commits ahead of the tracked branch and the files in each commit, then push explicitly. |
 | **Pull one or all** | Fast-forward one repository or every repository in the active workspace, with individual results. |
 | **Your appearance** | Light, dark, or system mode; Neutral, Violet, Ocean, and Forest palettes; a custom accent color. |
+| **Four languages** | English, Persian, Arabic, and Simplified Chinese, with saved language preferences and RTL/LTR layouts. |
 | **In-app updates** | Automatically check for signed releases, show release notes, and install with **Update & restart**. |
 | **Remote updates** | Fetch manually or opt into a fetch every 60 seconds for each workspace. |
 | **Git onboarding** | Check Git at startup and offer an OS installer or the official download page if it is missing. |
@@ -58,13 +61,36 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 
 ### A lighter workspace
 
-![GitOrbit with crisp black lettering and a transparent logotype in the Ocean light theme](docs/images/gitorbit-overview-light.jpg)
+![GitOrbit with crisp black lettering and a transparent logotype in the light theme](docs/images/gitorbit-overview-light.jpg)
 
 ![Appearance preferences with modes, palettes, and custom accent](docs/images/gitorbit-appearance.jpg)
 
 ### A clear first step when Git is missing
 
 ![GitOrbit Git installation screen](docs/images/gitorbit-git-setup.jpg)
+
+</details>
+
+<details>
+<summary><strong>Localized previews · فارسی · العربية · 简体中文</strong></summary>
+
+### فارسی
+
+[Read the Persian README](README.fa.md)
+
+![GitOrbit with its Persian RTL interface](docs/images/gitorbit-fa-overview.jpg)
+
+### العربية
+
+[Read the Arabic README](README.ar.md)
+
+![GitOrbit with its Arabic RTL interface](docs/images/gitorbit-ar-overview.jpg)
+
+### 简体中文
+
+[Read the Chinese README](README.zh-CN.md)
+
+![GitOrbit with its Simplified Chinese LTR interface](docs/images/gitorbit-zh-overview.jpg)
 
 </details>
 
@@ -121,7 +147,7 @@ Fetch updates Git's remote refs. Stage, unstage, commit, pull, and push happen o
 
 Files are grouped into **Staged**, **Changes**, and **Unversioned Files**, with individual untracked files shown even inside new folders. A partially staged file appears in both Staged and Changes. Click either entry to review the corresponding **HEAD → Index** or **Index → Working tree** diff.
 
-Select checkboxes, then choose **Stage selected** or **Unstage selected**. Enter a commit message and select **Commit staged** to commit the current index; unchecked unstaged files are not added automatically. Existing Git hooks and signing settings still apply. Refresh reloads the file list, and operation errors remain visible.
+Select checkboxes, then choose **Stage selected** or **Unstage selected**. Enter a commit message and select **Commit** to commit the current index; unchecked unstaged files are not added automatically. Existing Git hooks and signing settings still apply. Refresh reloads the file list, and operation errors remain visible.
 
 ### Pull updates
 
@@ -238,9 +264,7 @@ The Rust scanner discovers repositories and reads `git status --porcelain=v2`. I
 
 **Where are tabs saved?** In `workspaces.json` under the OS app configuration directory for `ir.sepehra.workspace-monitor`. Closing a tab stops monitoring it without deleting its folder.
 
-**Which languages are supported?** English, Persian (فارسی), and Arabic (العربية). Choose a language in the header; it changes immediately and survives restarts. Persian and Arabic mirror the layout, tabs, dialogs, and Git graph. File paths, hashes, and code diffs keep their original direction. Switching languages preserves open workspaces, selected files, and draft commit messages.
-
-![GitOrbit in Persian with right-to-left layout and dark mode](docs/images/gitorbit-persian-dark.png)
+**Which languages are supported?** English, Persian (فارسی), Arabic (العربية), and Simplified Chinese (简体中文). Choose a language in the header; it changes immediately and survives restarts. Persian and Arabic mirror the layout, tabs, dialogs, and Git graph; English and Chinese use LTR. File paths, hashes, and code diffs keep their original direction. Switching languages preserves open workspaces, selected files, and draft commit messages. [Persian](README.fa.md), [Arabic](README.ar.md), and [Chinese](README.zh-CN.md) READMEs include screenshots in their own language.
 
 **Where are themes saved?** In the app's local storage. System mode follows OS appearance changes; palette and accent settings survive restarts.
 
@@ -248,7 +272,7 @@ The Rust scanner discovers repositories and reads `git status --porcelain=v2`. I
 
 ## Contributing
 
-[Report a bug or propose a feature](https://github.com/sajadjanat/gitorbit/issues). For code changes, describe the problem, keep the compact interface in mind, and run the relevant checks before opening a pull request. Add UI translations for English, Persian, and Arabic in `src/lib/messages.ts`, with matching interpolation fields. Documentation remains in English.
+[Report a bug or propose a feature](https://github.com/sajadjanat/gitorbit/issues). For code changes, describe the problem, keep the compact interface in mind, and run the relevant checks before opening a pull request. Add UI translations for English, Persian, Arabic, and Chinese in `src/lib/messages.ts`, with matching interpolation fields. Keep the localized READMEs and their screenshots consistent with the interface.
 
 ---
 

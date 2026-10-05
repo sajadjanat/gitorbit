@@ -94,7 +94,9 @@ window.__TAURI_INTERNALS__ = {
  }
 };
 const {default:App} = await import('/src/App.tsx');
-const {LanguageProvider} = await import('/src/lib/i18n.tsx');
+const {LanguageProvider,setLanguage,languages} = await import('/src/lib/i18n.tsx');
+const previewLanguage = new URLSearchParams(location.search).get('lang');
+if(languages.some(language => language.id === previewLanguage)) setLanguage(previewLanguage);
 createRoot(document.getElementById('root')).render(React.createElement(LanguageProvider,null,React.createElement(App)));
 </script></body></html>`)
 console.log('Sample workspaces ready. Start npm run dev, then visit /.dev/readme-preview.html.')

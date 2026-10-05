@@ -47,7 +47,7 @@ The `Publish signed desktop updates` workflow runs on version tags or manual dis
 
 ## Languages and direction
 
-The language selector supports `en`, `fa`, and `ar`. `src/lib/i18n.tsx` saves the choice under `gitorbit-language`, updates the document language/direction, and supplies Radix's direction context, including portalled dialogs and menus. The app updates without remounting repository controls. New UI copy needs both translations in `src/lib/messages.ts`; preserve named interpolation fields exactly. Tests check catalog parity and literal translation-key coverage.
+The language selector supports `en`, `fa`, `ar`, and `zh` (Simplified Chinese, `zh-CN`). `src/lib/i18n.tsx` saves the choice under `gitorbit-language`, updates the document language/direction, and supplies Radix's direction context, including portalled dialogs and menus. The app updates without remounting repository controls. New UI copy needs all three translations in `src/lib/messages.ts`; preserve named interpolation fields exactly. Tests check catalog parity and literal translation-key coverage. English and Chinese use LTR; Persian and Arabic use RTL.
 
 Use logical spacing/alignment (`ms`, `me`, `ps`, `pe`, `text-start`, `border-e`) for interface layout. Keep file paths, hashes, code, and diff pane ordering independently LTR; isolate interpolated Git metadata to avoid bidirectional punctuation errors. Commit dates use localized formatting with the Gregorian calendar. Document screenshots use synthetic workspaces.
 
@@ -66,5 +66,7 @@ To verify the published updater endpoint and signature without installing anythi
 ## Documentation screenshots
 
 Run `npm run docs:preview`, start Vite, and open `/.dev/readme-preview.html`. Capture the actual interface using the sample workspaces. `?git=missing` shows onboarding. Generated preview files remain in `.dev/`, which is ignored by Git; committed images live in `docs/images/`.
+
+Use `?lang=en`, `?lang=fa`, `?lang=ar`, or `?lang=zh` to reproduce a localized preview. Each localized README links its own screenshots; Git metadata and code are original example content, not translated application labels.
 
 Use synthetic folder paths and repository names. Do not capture private workspace data in public documentation.

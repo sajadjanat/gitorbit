@@ -182,6 +182,7 @@
 
 /* Layout follows the selected language; Git data remains independently readable. */
 html[dir="rtl"] { --font-sans: "Vazirmatn Variable", sans-serif; font-family: var(--font-sans); }
+html[lang="zh-CN"] { --font-sans: "Geist Variable", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; font-family: var(--font-sans); }
 html[dir="rtl"] [data-slot="switch-thumb"][data-state="checked"] { translate: calc(-100% + 2px) 0; }
 html[dir="rtl"] [data-graph-row] { transform: scaleX(-1); }
 bdi, [dir="ltr"], [dir="auto"] { unicode-bidi: isolate; }
