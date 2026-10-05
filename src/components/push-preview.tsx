@@ -85,12 +85,16 @@ export function PushPreview({
   upstream,
   behind,
   onPushed,
+  blocked = false,
+  onBusyChange,
 }: {
   workspaceId: string;
   path: string;
   upstream: string | null;
   behind: number | null;
   onPushed: () => void;
+  blocked?: boolean;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const [refresh, setRefresh] = useState(0);
   const [outgoing, setOutgoing] = useState<Outgoing | null>(null);
@@ -145,11 +149,11 @@ export function PushPreview({
   }, [workspaceId, path, selectedHash]);
 
   const selectedCommit = outgoing?.commits.find((commit) => commit.hash === selectedHash);
-  const cannotPush = !outgoing || loading || pushing || outgoing.totalCommits === 0 || !selectedHash || filesLoading || Boolean(filesError) || (behind ?? 0) > 0;
+  const cannotPush = blocked || !outgoing || loading || pushing || outgoing.totalCommits === 0 || !selectedHash || filesLoading || Boolean(filesError) || (behind ?? 0) > 0;
 
   async function push() {
     if (cannotPush || !outgoing) return;
-    setPushing(true);
+    setPushing(true); onBusyChange?.(true);
     setError("");
     setNotice("");
     try {
@@ -159,7 +163,7 @@ export function PushPreview({
     } catch (reason) {
       setError(String(reason));
     } finally {
-      setPushing(false);
+      setPushing(false); onBusyChange?.(false);
     }
   }
 

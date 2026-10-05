@@ -900,7 +900,7 @@ export default function App() {
                 <TabsList className="mx-5 mb-2 shrink-0 w-fit"><TabsTrigger value="graph">Git graph</TabsTrigger><TabsTrigger value="changes">Version Control <span className="ml-1 text-muted-foreground">{selected.changed}</span></TabsTrigger><TabsTrigger value="push">Push <span className="ml-1 text-muted-foreground">{selected.ahead ?? "?"}</span></TabsTrigger></TabsList>
                 <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory workspaceId={detail.workspaceId} path={selected.path} /></TabsContent>
                 <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
-                <TabsContent value="push" className="m-0 flex flex-1 min-h-0 border-t"><PushPreview workspaceId={detail.workspaceId} path={selected.path} upstream={selected.upstream} behind={selected.behind} onPushed={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
+                <TabsContent value="push" className="m-0 flex flex-1 min-h-0 border-t"><PushPreview workspaceId={detail.workspaceId} path={selected.path} upstream={selected.upstream} behind={selected.behind} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onPushed={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
               </Tabs>
             </>}
           </SheetContent>

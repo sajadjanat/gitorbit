@@ -235,7 +235,7 @@ describe("Workspace Monitor", () => {
     await user.click(screen.getByRole("tab", { name: /Version Control/ }));
     await screen.findByRole("checkbox", { name: "Select staged src/server.ts" });
     await user.type(screen.getByLabelText("Commit message"), "Keep this message");
-    await user.click(screen.getByRole("button", { name: "Commit staged" }));
+    await user.click(screen.getByRole("button", { name: "Commit" }));
     expect(await screen.findByText("Pre-commit hook rejected the commit.")).toBeInTheDocument();
     await waitFor(() => expect(native.changes).toHaveBeenCalledTimes(2));
     expect(screen.getByLabelText("Commit message")).toHaveValue("Keep this message");
@@ -256,8 +256,8 @@ describe("Workspace Monitor", () => {
     await waitFor(() => expect(native.action).toHaveBeenCalledWith("a", "C:/projects/api", "stage", ["src/server.ts"], null));
     await screen.findByRole("checkbox", { name: "Select staged src/server.ts" });
     await user.type(screen.getByLabelText("Commit message"), "Update server");
-    await waitFor(() => expect(screen.getByRole("button", { name: "Commit staged" })).toBeEnabled());
-    await user.click(screen.getByRole("button", { name: "Commit staged" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Commit" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Commit" }));
     await waitFor(() => expect(native.action).toHaveBeenCalledWith("a", "C:/projects/api", "commit", [], "Update server"));
   });
 });

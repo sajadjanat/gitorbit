@@ -61,12 +61,18 @@ it("debounces file events and scans only their workspace", async () => {
     changed("b");
     changed("b");
     changed("b");
-    vi.advanceTimersByTime(349);
+    vi.advanceTimersByTime(749);
   });
   expect(native.scan).not.toHaveBeenCalled();
   await act(async () => vi.advanceTimersByTime(1));
   expect(native.scan).toHaveBeenCalledTimes(1);
   expect(native.scan).toHaveBeenCalledWith("b", false);
+  vi.mocked(native.scan).mockClear();
+  act(() => changed("b"));
+  await act(async () => vi.advanceTimersByTime(2999));
+  expect(native.scan).not.toHaveBeenCalled();
+  await act(async () => vi.advanceTimersByTime(1));
+  expect(native.scan).toHaveBeenCalledExactlyOnceWith("b", false);
 });
 it("supports manual refresh when monitoring is paused", async () => {
   const hook = renderHook(() => useMonitor(single, true, false));

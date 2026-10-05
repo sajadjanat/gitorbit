@@ -159,7 +159,7 @@ export function SideBySideDiff({
   truncated: boolean;
   newFile?: boolean;
 }) {
-  const isNewFile = explicitlyNew || text.startsWith("--- /dev/null");
+  const isNewFile = explicitlyNew || text.startsWith("--- /dev/null") || text.includes("\n--- /dev/null\n");
   const isDeletedFile = text.includes("\n+++ /dev/null");
   const beforeLabel = isNewFile ? "/dev/null" : staged ? "HEAD" : "Index";
   const afterLabel = isDeletedFile ? "/dev/null" : staged ? "Index · staged" : "Working tree";
@@ -212,7 +212,7 @@ export function SideBySideDiff({
     <div className="h-full min-h-0 min-w-0 font-mono text-[14px] leading-6" aria-label={isNewFile ? "New file contents" : "Side-by-side diff"}>
       {isNewFile ? (
         <div className="flex h-full min-h-0 flex-col">
-          <div className="shrink-0 border-b border-border bg-muted px-4 py-2 font-sans text-xs font-medium text-muted-foreground shadow-sm">New file · Working tree</div>
+          <div className="shrink-0 border-b border-border bg-muted px-4 py-2 font-sans text-xs font-medium text-muted-foreground shadow-sm">New file · {staged ? "Index · staged" : "Working tree"}</div>
           <div className="diff-viewport min-h-0 min-w-0 flex-1 overflow-auto">
             <div className="grid w-max min-w-full grid-cols-[3.5rem_max-content]">{renderNewFileRows()}</div>
             {truncated && <p className="w-max min-w-full border-t px-3 py-2 font-sans text-xs text-amber-500">Preview truncated at 512 KB.</p>}

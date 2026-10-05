@@ -529,6 +529,67 @@ mod tests {
         exec(git, repo, &["config", "user.email", "demo@example.com"]);
         exec(git, repo, &["config", "commit.gpgsign", "false"]);
     }
+    fn push_fixture() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
+        let root = tempfile::tempdir().unwrap();
+        let local = root.path().join("local");
+        let remote = root.path().join("remote.git");
+        let (git, _) = find_git().unwrap();
+        fs::create_dir(&local).unwrap(); setup(&local, &git);
+        exec(&git, root.path(), &["init", "--bare", "-q", remote.to_str().unwrap()]);
+        fs::write(local.join("original.txt"), "original\n").unwrap();
+        action(&git, &local, "stage", &["original.txt".into()], None).unwrap();
+        action(&git, &local, "commit", &[], Some("Initial")).unwrap();
+        exec(&git, &local, &["remote", "add", "origin", remote.to_str().unwrap()]);
+        exec(&git, &local, &["push", "-qu", "origin", "HEAD:published"]);
+        (root, git, local, remote)
+    }
+    #[test]
+    fn outgoing_rename_files_and_push_to_tracked_destination() {
+        let (_root, git, local, remote) = push_fixture();
+        exec(&git, &local, &["mv", "original.txt", "renamed.txt"]);
+        action(&git, &local, "commit", &[], Some("Rename file")).unwrap();
+        fs::write(local.join("private.txt"), "keep locally").unwrap();
+        let preview = outgoing(&git, &local).unwrap();
+        assert_eq!(preview.destination_branch, "published");
+        assert_eq!(preview.source_branch, "main");
+        assert_eq!(preview.total_commits, 1);
+        let files = outgoing_commit_files(&git, &local, &preview.head).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "renamed.txt");
+        assert_eq!(files[0].original_path.as_deref(), Some("original.txt"));
+        assert!(push(&git, &local, &preview.head, &preview.upstream_head).unwrap().contains("origin:published"));
+        assert_eq!(outgoing(&git, &local).unwrap().total_commits, 0);
+        let remote_head = String::from_utf8_lossy(&run(&git, &remote, &["rev-parse", "refs/heads/published"]).unwrap()).trim().to_owned();
+        assert_eq!(remote_head, preview.head);
+        assert_eq!(fs::read_to_string(local.join("private.txt")).unwrap(), "keep locally");
+        assert!(run(&git, &remote, &["show", "published:private.txt"]).is_err());
+    }
+    #[test]
+    fn push_refuses_a_changed_branch_tip_after_review() {
+        let (_root, git, local, remote) = push_fixture();
+        exec(&git, &local, &["commit", "--allow-empty", "-qm", "Reviewed"]);
+        let preview = outgoing(&git, &local).unwrap();
+        exec(&git, &local, &["commit", "--allow-empty", "-qm", "Unreviewed"]);
+        assert!(push(&git, &local, &preview.head, &preview.upstream_head).unwrap_err().contains("branch changed"));
+        assert_eq!(String::from_utf8_lossy(&run(&git, &remote, &["rev-parse", "published"]).unwrap()).trim(), preview.upstream_head);
+        assert!(outgoing_commit_files(&git, &local, "--bad-option").is_err());
+    }
+    #[test]
+    fn push_never_overwrites_remote_commits_and_rejects_a_stale_tracking_ref() {
+        let (root, git, local, remote) = push_fixture();
+        let peer = root.path().join("peer");
+        exec(&git, root.path(), &["clone", "-q", "-b", "published", remote.to_str().unwrap(), peer.to_str().unwrap()]);
+        exec(&git, &peer, &["config", "user.name", "Demo"]);
+        exec(&git, &peer, &["config", "user.email", "demo@example.com"]);
+        exec(&git, &peer, &["-c", "commit.gpgsign=false", "commit", "--allow-empty", "-qm", "Peer update"]);
+        exec(&git, &peer, &["push", "-q"]);
+        exec(&git, &local, &["commit", "--allow-empty", "-qm", "Local update"]);
+        let preview = outgoing(&git, &local).unwrap();
+        assert!(push(&git, &local, &preview.head, &preview.upstream_head).is_err());
+        exec(&git, &local, &["fetch", "-q", "origin"]);
+        assert!(push(&git, &local, &preview.head, &preview.upstream_head).unwrap_err().contains("remote-tracking branch changed"));
+        assert_eq!(String::from_utf8_lossy(&run(&git, &remote, &["log", "-1", "--format=%s", "published"]).unwrap()).trim(), "Peer update");
+    }
     #[test]
     fn staging_unborn_literal_names_partial_index_and_commit() {
         let root = tempfile::tempdir().unwrap();
