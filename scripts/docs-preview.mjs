@@ -27,7 +27,7 @@ const data = {
   snapshots: {
     studio: snapshot('studio', [
       repository('orbit/api', { changed: 4, staged: 1, unstaged: 2, untracked: 1, files }),
-      repository('orbit/web', { branch: 'feat/workspace-tabs', upstream: 'origin/feat/workspace-tabs', ahead: 3 }),
+      repository('orbit/web', { branch: 'feat/workspace-tabs', upstream: 'origin/feat/workspace-tabs', ahead: 2 }),
       repository('atlas/site', { behind: 2 }),
       repository('nova/mobile', { ahead: 1, behind: 2 }),
       repository('metrics', { changed: 1, conflicts: 1, staged: 1, unstaged: 1, files: [{ path: 'src/config.ts', originalPath: null, status: 'UU' }] }),
@@ -63,6 +63,18 @@ data.history = {
   ],
   head: 'a1'.padEnd(40, '0'), hasMore: false, shallow: false,
 };
+data.outgoing = {
+  head: 'a1'.padEnd(40, '0'), upstreamHead: 'c1'.padEnd(40, '0'), sourceBranch: 'feat/workspace-tabs', remote: 'origin', destinationBranch: 'feat/workspace-tabs',
+  totalCommits: 2, hasMore: false, commits: [
+    commit('a1', ['b1'], 'feat(workspace): refresh all workspaces together', 0),
+    commit('b1', ['c1'], 'feat(ui): add workspace tabs', 1),
+  ],
+};
+data.commitFiles = [
+  {path: 'src/services/workspace.ts', originalPath: null, status: 'M'},
+  {path: 'src/components/workspace-tabs.tsx', originalPath: null, status: 'A'},
+  {path: 'src/lib/preferences.ts', originalPath: 'src/lib/settings.ts', status: 'R100'},
+];
 await mkdir('.dev', { recursive: true })
 await writeFile('.dev/readme-data.json', JSON.stringify(data, null, 2))
 await writeFile('.dev/readme-preview.html', `<!doctype html>
@@ -74,6 +86,13 @@ if (new URLSearchParams(location.search).get('git') === 'missing') { data.enviro
 window.isTauri = true;
 window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
 let roots = data.workspaces; let next = 0;
+// Optional sign-in demo: only fixtures change, never credentials or Git refs.
+const authDemo = new URLSearchParams(location.search).get('auth');
+const syncDemo = new URLSearchParams(location.search).get('sync');
+const sampleRepo = data.snapshots.studio.repositories.find(repo => repo.name === 'orbit/web');
+let syncState = {reviewToken:'sample-context',head:data.outgoing.head,upstreamHead:'d1'.padEnd(40,'0'),sourceBranch:sampleRepo.branch,remote:'origin',destinationBranch:sampleRepo.branch,ahead:syncDemo==='behind'?0:2,behind:2,dirty:syncDemo==='dirty'?1:0,conflicts:syncDemo==='conflict'?1:0,operation:syncDemo==='conflict'?'merge':null,mergeHead:syncDemo==='conflict'?'d1'.padEnd(40,'0'):null,blockedReason:null,note:null,incoming:[{hash:'d1'.padEnd(40,'0'),subject:'fix: preserve remote workspace settings',author:'Demo',timestamp:1791102000},{hash:'d2'.padEnd(40,'0'),subject:'feat: improve repository refresh',author:'Demo',timestamp:1791098400}]};
+if(syncDemo) Object.assign(sampleRepo,{ahead:syncState.ahead,behind:syncState.behind,changed:syncState.dirty,conflicts:syncState.conflicts});
+let signedIn = false;
 window.__TAURI_INTERNALS__ = {
  transformCallback: () => ++next,
  invoke: async (command,args) => {
@@ -84,6 +103,30 @@ window.__TAURI_INTERNALS__ = {
   if(command==='load_workspaces') return roots;
   if(command==='scan_workspace') return data.snapshots[args.workspaceId];
   if(command==='repository_history') return data.history;
+  if(command==='repository_outgoing') return data.outgoing;
+  if(command==='repository_sync') {
+    if(args.action==='integrate') {
+      syncState={...syncState,head:'e1'.padEnd(40,'0'),ahead:3,behind:0,incoming:[]};
+      data.outgoing={...data.outgoing,head:syncState.head,upstreamHead:syncState.upstreamHead,totalCommits:3,commits:[{hash:syncState.head,subject:'Merge incoming workspace updates',author:'Demo',timestamp:1791105600},...data.outgoing.commits]};
+    }
+    if(args.action==='abort') syncState={...syncState,operation:null,mergeHead:null,conflicts:0};
+    Object.assign(sampleRepo,{ahead:syncState.ahead,behind:syncState.behind,conflicts:syncState.conflicts});
+    return structuredClone(syncState);
+  }
+  if(command==='push_repository' && syncDemo) {Object.assign(sampleRepo,{ahead:0});return 'Documentation demo completed. No repository was changed.';}
+  if(command==='push_repository' && authDemo) {
+    if(!signedIn) throw new Error("remote: Failed to authenticate user\\nfatal: Authentication failed for 'https://git.example.invalid/demo/repo.git/'");
+    return 'Documentation demo completed. No repository was changed.';
+  }
+  if(command==='repository_authentication') return {target:'https://git.example.invalid/demo/repo.git/',host:'https://git.example.invalid',canSignIn:authDemo!=='missing',reason:authDemo==='missing'?'Install and configure Git Credential Manager, then refresh this page.':null};
+  if(command==='sign_in_repository') { signedIn=true; return null; }
+  if(command==='cancel_git_sign_in' || command==='open_git_sign_in_setup') return null;
+  if(command==='repository_commit_files') return data.commitFiles;
+  if(command==='repository_commit_diff') {
+    const file = data.commitFiles.find(file => file.path === args.file);
+    const text = file.status === 'A' ? 'diff --git a/'+args.file+' b/'+args.file+'\\nnew file mode 100644\\n--- /dev/null\\n+++ b/'+args.file+'\\n@@ -0,0 +1,3 @@\\n+export function WorkspaceTabs() {\\n+  return <nav aria-label="Workspaces" />;\\n+}' : file.originalPath ? 'diff --git a/'+file.originalPath+' b/'+file.path+'\\nsimilarity index 100%\\nrename from '+file.originalPath+'\\nrename to '+file.path : 'diff --git a/'+args.file+' b/'+args.file+'\\n--- a/'+args.file+'\\n+++ b/'+args.file+'\\n@@ -1,3 +1,4 @@\\n export function refreshWorkspace() {\\n-  return scan(activeWorkspace);\\n+  return Promise.all(workspaces.map(scan));\\n+  // Keep every workspace up to date.\\n }';
+    return { beforeRevision: args.commitHash === data.outgoing.head ? 'b1'.padEnd(40, '0') : 'c1'.padEnd(40, '0'), afterRevision: args.commitHash, text, truncated: false };
+  }
   if(command==='repository_changes') return data.snapshots.studio.repositories[0];
   if(command==='repository_diff') return { text: 'diff --git a/'+args.file+' b/'+args.file+'\\n--- a/'+args.file+'\\n+++ b/'+args.file+'\\n@@ -1,4 +1,5 @@\\n export function refreshWorkspace() {\\n-  return scan(activeWorkspace);\\n+  return Promise.all(workspaces.map(scan));\\n+  // Keep every workspace up to date.\\n }', truncated: false };
   if(command==='save_workspaces') {roots=args.workspaces; return null;}

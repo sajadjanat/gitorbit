@@ -5,6 +5,10 @@ mod git;
 mod history;
 #[path = "../version_control.rs"]
 mod version_control;
+#[path = "../auth.rs"]
+mod auth;
+#[path = "../sync.rs"]
+mod sync;
 use git::{find_git, scan, Workspace};
 fn main() {
     let args: Vec<_> = std::env::args().collect();

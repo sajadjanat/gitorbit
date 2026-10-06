@@ -90,7 +90,27 @@ export interface CommitFile {
   originalPath: string | null;
   status: string;
 }
+export interface CommitDiff {
+  text: string;
+  truncated: boolean;
+  beforeRevision: string | null;
+  afterRevision: string;
+}
+export interface AuthenticationInfo {
+  target: string;
+  host: string;
+  canSignIn: boolean;
+  reason: string | null;
+}
+export interface SyncState {
+  reviewToken: string;
+  head: string; upstreamHead: string; sourceBranch: string; remote: string; destinationBranch: string;
+  ahead: number; behind: number; dirty: number; conflicts: number;
+  operation: string | null; mergeHead: string | null; blockedReason: string | null;
+  incoming: OutgoingCommit[]; note: string | null;
+}
 export const native = {
+  sync: (workspaceId: string, path: string, action: "inspect" | "fetch" | "integrate" | "abort", expectedHead = "", expectedUpstreamHead = "", expectedToken = "") => invoke<SyncState>("repository_sync", {workspaceId, path, action, expectedHead, expectedUpstreamHead, expectedToken}),
   available: isTauri,
   environment: () => invoke<Environment>("check_environment"),
   load: () => invoke<Workspace[]>("load_workspaces"),
@@ -112,8 +132,15 @@ export const native = {
     invoke<Outgoing>("repository_outgoing", { workspaceId, path }),
   commitFiles: (workspaceId: string, path: string, commitHash: string) =>
     invoke<CommitFile[]>("repository_commit_files", { workspaceId, path, commitHash }),
+  commitDiff: (workspaceId: string, path: string, commitHash: string, file: string) =>
+    invoke<CommitDiff>("repository_commit_diff", { workspaceId, path, commitHash, file }),
   push: (workspaceId: string, path: string, expectedHead: string, expectedUpstreamHead: string) =>
     invoke<string>("push_repository", { workspaceId, path, expectedHead, expectedUpstreamHead }),
+  authentication: (workspaceId: string, path: string) => invoke<AuthenticationInfo>("repository_authentication", { workspaceId, path }),
+  signIn: (workspaceId: string, path: string, target: string, expectedHead: string, expectedUpstreamHead: string, sessionId: string) => invoke<void>("sign_in_repository", { workspaceId, path, target, expectedHead, expectedUpstreamHead, sessionId, purpose: "push" }),
+  signInFetch: (workspaceId: string, path: string, target: string, expectedHead: string, expectedUpstreamHead: string, sessionId: string) => invoke<void>("sign_in_repository", {workspaceId, path, target, expectedHead, expectedUpstreamHead, sessionId, purpose: "fetch"}),
+  cancelSignIn: (workspaceId: string, path: string, sessionId: string) => invoke<void>("cancel_git_sign_in", { workspaceId, path, sessionId }),
+  signInSetup: () => invoke<void>("open_git_sign_in_setup"),
   changes: (workspaceId: string, path: string) => invoke<Repository>("repository_changes", { workspaceId, path }),
   diff: (workspaceId: string, path: string, file: string, staged: boolean) => invoke<{text: string; truncated: boolean}>("repository_diff", { workspaceId, path, file, staged }),
   action: (workspaceId: string, path: string, action: "stage" | "unstage" | "commit" | "pull" | "create-branch", paths: string[] = [], message: string | null = null) => invoke<string>("repository_action", { workspaceId, path, action, paths, message }),

@@ -7,7 +7,7 @@
   <p>A compact desktop Git monitor built with Tauri, React, and shadcn/ui.</p>
   <p>
     <a href="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml"><img src="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml/badge.svg" alt="Desktop builds" /></a>
-    <a href="https://github.com/sajadjanat/gitorbit/releases"><img src="https://img.shields.io/badge/version-0.5.2-blue" alt="Version 0.5.2" /></a>
+    <a href="https://github.com/sajadjanat/gitorbit/releases"><img src="https://img.shields.io/badge/version-0.5.4-blue" alt="Version 0.5.4" /></a>
     <img src="https://img.shields.io/badge/Tauri-2-24c8db?logo=tauri&logoColor=white" alt="Tauri 2" />
     <img src="https://img.shields.io/badge/UI-shadcn%2Fui-18181b?logo=shadcnui&logoColor=white" alt="shadcn/ui" />
   </p>
@@ -38,7 +38,7 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 | **Clear next steps** | Colored labels identify Commit, Push, Pull, Resolve, Sync branch, and upstream problems. |
 | **Git graph** | Click a repository to see real commit history, branch lanes, merges, HEAD, branches, and tags. |
 | **Version Control** | Inspect staged, unstaged, and unversioned files; review diffs, stage a selection, unstage, and commit. |
-| **Push preview** | Review commits ahead of the tracked branch and the files in each commit, then push explicitly. |
+| **Push preview** | Review outgoing commits, open any file in a synchronized side-by-side diff, then push explicitly. |
 | **Pull one or all** | Fast-forward one repository or every repository in the active workspace, with individual results. |
 | **Your appearance** | Light, dark, or system mode; Neutral, Violet, Ocean, and Forest palettes; a custom accent color. |
 | **Four languages** | English, Persian, Arabic, and Simplified Chinese, with saved language preferences and RTL/LTR layouts. |
@@ -117,7 +117,7 @@ The [desktop build workflow](https://github.com/sajadjanat/gitorbit/actions/work
 
 1. Open GitOrbit. If Git is missing, select **Install Git** or **Download Git**, then **Check again**.
 2. Select **Add workspace** and choose a folder containing your Git repositories. You can choose multiple folders at once.
-3. Read the **Next** column. Click a repository for its **Git graph**; switch to **Version Control** for files, diffs, and commits.
+3. Read the **Next** column. Click a repository to open **Version Control** for files, diffs, and commits; switch to **Push** or **Git graph** as needed.
 4. Select **Fetch remotes** for current upstream counts. Enable **Auto fetch** if you want those counts refreshed periodically.
 5. Select **Pull all** to update the active workspace, or **Pull repository** in a repository's dialog. Review the updated, skipped, and failed results.
 6. Open **Appearance** in the header to choose your mode, palette, and accent.
@@ -157,7 +157,13 @@ Pull uses `git pull --ff-only --no-rebase --no-edit`. Repositories with local ch
 
 ### Push commits
 
-When a repository is ahead of its tracked remote branch, select the row to open its **Push** tab. The preview lists outgoing commits and the files changed by the selected commit. **Push** sends the previewed branch tip to that tracked remote branch; local uncommitted changes are not included. If the branch changes after the preview, refresh the list before pushing. A remote branch that is ahead must be fetched and pulled first.
+Before sending commits, GitOrbit checks the actual push destination for unseen changes. A rejected push opens **Sync before pushing**: select **Fetch and check** to review incoming commits, then **Pull incoming commits** for a branch that is only behind or **Merge incoming commits** when both sides have new commits. Review the refreshed push preview before pushing explicitly. Existing commit IDs are preserved; dirty files block synchronization. If a merge conflicts, open Version Control to resolve, stage, and commit the merge, or choose **Abort merge** after reviewing the warning about discarding resolution edits. Other Git operations and mismatched fetch/push destinations show guidance instead of attempting an unsafe sync. Fetch authentication failures offer sign-in and an explicit fetch retry.
+
+Open a repository and select its **Push** tab to review outgoing commits and the files changed by the selected commit. Click a file to compare the commit with its first parent in a synchronized side-by-side diff. The file list moves into the sidebar; close the diff to return to the outgoing commits. **Push** sends the previewed branch tip to the tracked remote branch; local uncommitted changes are not included. If the branch changes after the preview, refresh the list before pushing. A remote branch that is ahead must be fetched and pulled first.
+
+### Git sign-in
+
+If a push fails because authentication is missing or expired, GitOrbit shows **Sign in to Git** and the remote host. Complete the Git Credential Manager dialog, then choose **Retry push**. Sign-in checks access with a dry run; it does not send your commits. You can cancel, and sign-in times out after three minutes. If the credential manager is missing, **Set up Git sign-in** opens the [official installation guide](https://github.com/git-ecosystem/git-credential-manager/blob/main/docs/install.md); install and configure it, then recheck. Use an access token when your server requires one. SSH remotes need an SSH key configured outside the app. GitOrbit does not collect passwords, and background scans never open login dialogs.
 
 ### Git history
 

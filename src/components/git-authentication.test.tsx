@@ -1,0 +1,50 @@
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { native } from "@/lib/native";
+import { setLanguage, t } from "@/lib/i18n";
+import { GitAuthentication } from "./git-authentication";
+vi.mock("@/lib/native", () => ({ native: { authentication: vi.fn(), signIn: vi.fn(), cancelSignIn: vi.fn(), signInSetup: vi.fn() } }));
+const props = { workspaceId: "demo", path: "/demo", expectedHead: "a".repeat(40), expectedUpstreamHead: "b".repeat(40), error: "Authentication failed", blocked: false, onRetry: vi.fn() };
+beforeEach(() => { vi.resetAllMocks(); setLanguage("en"); vi.mocked(native.authentication).mockResolvedValue({ target: "https://git.example.invalid/repo", host: "https://git.example.invalid", canSignIn: true, reason: null }); });
+afterEach(() => setLanguage("en"));
+it.each(["en", "fa", "ar", "zh"] as const)("can cancel login and release its operation lock in %s", async language => {
+  setLanguage(language); let reject!: (reason: string) => void;
+  vi.mocked(native.signIn).mockImplementation(() => new Promise((_, fail) => { reject = fail; }));
+  vi.mocked(native.cancelSignIn).mockImplementation(async () => { reject("Sign-in cancelled. You can try again."); });
+  const user = userEvent.setup(); const busy = vi.fn(); const view = render(<GitAuthentication {...props} onBusyChange={busy} />);
+  await waitFor(() => expect(screen.getByRole("button", { name: t("Sign in to Git") })).toBeEnabled());
+  await user.click(screen.getByRole("button", { name: t("Sign in to Git") }));
+  view.rerender(<GitAuthentication {...props} blocked onBusyChange={busy} />);
+  const sessionId = vi.mocked(native.signIn).mock.calls[0][5];
+  await user.click(screen.getByRole("button", { name: t("Cancel sign-in") }));
+  expect(native.cancelSignIn).toHaveBeenCalledWith("demo", "/demo", sessionId);
+  expect(await screen.findByText(t("Sign-in cancelled. You can try again."))).toBeInTheDocument();
+  expect(busy).toHaveBeenLastCalledWith(false);
+  expect(props.onRetry).not.toHaveBeenCalled();
+});
+it("cancels pending login when leaving the view and ignores late completion", async () => {
+  let finish!: () => void; vi.mocked(native.signIn).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  vi.mocked(native.cancelSignIn).mockResolvedValue(); const busy = vi.fn(); const user = userEvent.setup();
+  const view = render(<GitAuthentication {...props} onBusyChange={busy} />);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Sign in to Git" })).toBeEnabled());
+  await user.click(screen.getByRole("button", { name: "Sign in to Git" }));
+  view.unmount(); expect(native.cancelSignIn).toHaveBeenCalledOnce();
+  await act(async () => finish()); expect(busy).toHaveBeenLastCalledWith(false); expect(props.onRetry).not.toHaveBeenCalled();
+});
+it("shows setup instructions when the credential manager is unavailable", async () => {
+  vi.mocked(native.authentication).mockResolvedValue({ target: "https://git.example.invalid/repo", host: "https://git.example.invalid", canSignIn: false, reason: "Install and configure Git Credential Manager, then refresh this page." });
+  vi.mocked(native.signInSetup).mockResolvedValue(); const user = userEvent.setup();
+  render(<GitAuthentication {...props} />);
+  expect(await screen.findByText("Install and configure Git Credential Manager, then refresh this page.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Sign in to Git" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Set up Git sign-in" })); expect(native.signInSetup).toHaveBeenCalledOnce();
+});
+it("releases the lock after timeout and never retries automatically", async () => {
+  vi.mocked(native.signIn).mockRejectedValue("Sign-in timed out. You can try again."); const user = userEvent.setup(); const busy = vi.fn();
+  render(<GitAuthentication {...props} onBusyChange={busy} />);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Sign in to Git" })).toBeEnabled());
+  await user.click(screen.getByRole("button", { name: "Sign in to Git" }));
+  expect(await screen.findByText("Sign-in timed out. You can try again.")).toBeInTheDocument();
+  expect(busy).toHaveBeenLastCalledWith(false); expect(props.onRetry).not.toHaveBeenCalled();
+});

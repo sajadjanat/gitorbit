@@ -154,16 +154,18 @@ export function SideBySideDiff({
   staged,
   truncated,
   newFile: explicitlyNew = false,
+  revisions,
 }: {
   text: string;
   staged: boolean;
   truncated: boolean;
   newFile?: boolean;
+  revisions?: { before: string; after: string };
 }) {
-  const isNewFile = explicitlyNew || text.startsWith("--- /dev/null") || text.includes("\n--- /dev/null\n");
+  const isNewFile = !revisions && (explicitlyNew || text.startsWith("--- /dev/null") || text.includes("\n--- /dev/null\n"));
   const isDeletedFile = text.includes("\n+++ /dev/null");
-  const beforeLabel = isNewFile ? "/dev/null" : staged ? "HEAD" : t("Index");
-  const afterLabel = isDeletedFile ? "/dev/null" : staged ? t("Index · staged") : t("Working tree");
+  const beforeLabel = revisions?.before ?? (isNewFile ? "/dev/null" : staged ? "HEAD" : t("Index"));
+  const afterLabel = revisions?.after ?? (isDeletedFile ? "/dev/null" : staged ? t("Index · staged") : t("Working tree"));
   const rows = parseDiff(text);
   const oldPane = useRef<HTMLDivElement>(null);
   const newPane = useRef<HTMLDivElement>(null);

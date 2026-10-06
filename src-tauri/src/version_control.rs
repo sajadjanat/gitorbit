@@ -4,7 +4,7 @@ use std::{collections::HashSet, fs, io::Read, path::Path, time::Duration};
 
 const MAX_OUTGOING_COMMITS: usize = 200;
 
-fn run(git: &Path, repo: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
+pub(crate) fn run(git: &Path, repo: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     let mut command = git_command(git, repo);
     command.args(args);
     capture(command, Duration::from_secs(45))
@@ -28,6 +28,15 @@ pub fn changes(git: &Path, repo: &Path) -> Result<Repository, String> {
 pub struct Diff {
     pub text: String,
     pub truncated: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitDiff {
+    pub text: String,
+    pub truncated: bool,
+    pub before_revision: Option<String>,
+    pub after_revision: String,
 }
 
 #[derive(Serialize)]
@@ -77,7 +86,7 @@ fn resolve_remote_target(
         .ok_or_else(|| "The tracked upstream is not a configured remote branch.".into())
 }
 
-fn read_upstream(
+pub(crate) fn read_upstream(
     git: &Path,
     repo: &Path,
 ) -> Result<(String, String, String, String, String, String), String> {
@@ -161,7 +170,7 @@ pub fn outgoing(git: &Path, repo: &Path) -> Result<Outgoing, String> {
     })
 }
 
-fn parse_outgoing_log(bytes: &[u8]) -> Result<Vec<OutgoingCommit>, String> {
+pub(crate) fn parse_outgoing_log(bytes: &[u8]) -> Result<Vec<OutgoingCommit>, String> {
     bytes
         .split(|byte| *byte == 0x1e)
         .filter(|record| !record.is_empty())
@@ -249,6 +258,33 @@ pub fn outgoing_commit_files(
     parse_name_status(&name_status)
 }
 
+pub fn outgoing_commit_diff(
+    git: &Path,
+    repo: &Path,
+    commit_hash: &str,
+    path: &str,
+) -> Result<CommitDiff, String> {
+    // Validate both the outgoing revision and literal file against Git's list.
+    let files = outgoing_commit_files(git, repo, commit_hash)?;
+    let file = files.iter().find(|file| file.path == path)
+        .ok_or("Choose a file from the selected commit.")?;
+    let parents = run(git, repo, &["rev-list", "--parents", "-n", "1", commit_hash])?;
+    let parent = String::from_utf8_lossy(&parents).split_whitespace().nth(1).map(str::to_owned);
+    let mut args = vec!["--literal-pathspecs"];
+    if let Some(parent) = &parent {
+        args.extend(["diff", "--no-ext-diff", "--no-textconv", "--no-color", "--find-renames", parent.as_str(), commit_hash]);
+    } else {
+        args.extend(["diff-tree", "--root", "--no-commit-id", "-r", "-p", "--no-ext-diff", "--no-textconv", "--no-color", "--find-renames", commit_hash]);
+    }
+    args.extend(["--", path]);
+    if let Some(original) = &file.original_path { args.push(original); }
+    let mut bytes = run(git, repo, &args)?;
+    const LIMIT: usize = 512 * 1024;
+    let truncated = bytes.len() > LIMIT;
+    bytes.truncate(LIMIT);
+    Ok(CommitDiff { text: String::from_utf8_lossy(&bytes).into_owned(), truncated, before_revision: parent, after_revision: commit_hash.to_owned() })
+}
+
 fn parse_name_status(bytes: &[u8]) -> Result<Vec<CommitFile>, String> {
     let fields: Vec<_> = bytes.split(|byte| *byte == 0).collect();
     let mut files = Vec::new();
@@ -287,12 +323,20 @@ fn parse_name_status(bytes: &[u8]) -> Result<Vec<CommitFile>, String> {
     Ok(files)
 }
 
-pub fn push(
+pub(crate) struct PushPlan {
+    pub remote: String,
+    pub refspec: String,
+    source_branch: String,
+    destination_branch: String,
+    count: usize,
+}
+
+pub(crate) fn push_plan(
     git: &Path,
     repo: &Path,
     expected_head: &str,
     expected_upstream_head: &str,
-) -> Result<String, String> {
+) -> Result<PushPlan, String> {
     if !matches!(expected_head.len(), 40 | 64)
         || !expected_head.bytes().all(|byte| byte.is_ascii_hexdigit())
         || !matches!(expected_upstream_head.len(), 40 | 64)
@@ -334,11 +378,22 @@ pub fn push(
     }
     let destination = format!("refs/heads/{destination_branch}");
     let refspec = format!("HEAD:{destination}");
+    Ok(PushPlan { remote, refspec, source_branch, destination_branch, count })
+}
+
+pub fn push(git: &Path, repo: &Path, expected_head: &str, expected_upstream_head: &str) -> Result<String, String> {
+    let plan = push_plan(git, repo, expected_head, expected_upstream_head)?;
+    // Check the actual push destination; cached tracking refs may be stale.
+    if crate::sync::remote_head(git, repo, &plan.remote, &plan.destination_branch)? != expected_upstream_head {
+        let _ = crate::sync::check(git, repo, true);
+        return Err(crate::sync::REMOTE_CHANGED.into());
+    }
+    let PushPlan { remote, refspec, source_branch, destination_branch, count } = push_plan(git, repo, expected_head, expected_upstream_head)?;
     let output = run(
         git,
         repo,
-        &["push", "--porcelain", remote.as_str(), refspec.as_str()],
-    )?;
+        &["push", "--porcelain", "--", remote.as_str(), refspec.as_str()],
+    ).map_err(|error| if crate::sync::is_rejection(&error) { crate::sync::REMOTE_CHANGED.into() } else { error })?;
     let output = String::from_utf8_lossy(&output)
         .trim()
         .chars()
@@ -613,6 +668,78 @@ mod tests {
         assert_eq!(remote_head, preview.head);
         assert_eq!(fs::read_to_string(local.join("private.txt")).unwrap(), "keep locally");
         assert!(run(&git, &remote, &["show", "published:private.txt"]).is_err());
+    }
+    #[test]
+    fn outgoing_diff_uses_committed_content_and_literal_paths() {
+        let (_root, git, local, _remote) = push_fixture();
+        fs::write(local.join("original.txt"), "committed change\n").unwrap();
+        fs::write(local.join("[literal].txt"), "literal addition\n").unwrap();
+        fs::write(local.join("binary.dat"), [0, 1, 2]).unwrap();
+        action(&git, &local, "stage", &["original.txt".into(), "[literal].txt".into(), "binary.dat".into()], None).unwrap();
+        action(&git, &local, "commit", &[], Some("Committed changes")).unwrap();
+        let preview = outgoing(&git, &local).unwrap();
+        fs::write(local.join("original.txt"), "uncommitted content\n").unwrap();
+        action(&git, &local, "stage", &["original.txt".into()], None).unwrap();
+        fs::write(local.join("original.txt"), "working tree content\n").unwrap();
+        let diff = outgoing_commit_diff(&git, &local, &preview.head, "original.txt").unwrap();
+        assert!(diff.text.contains("-original") && diff.text.contains("+committed change"));
+        assert!(!diff.text.contains("uncommitted") && !diff.text.contains("working tree"));
+        assert_eq!(diff.before_revision.as_deref(), Some(preview.upstream_head.as_str()));
+        assert_eq!(diff.after_revision, preview.head);
+        assert!(!diff.truncated);
+        assert!(outgoing_commit_diff(&git, &local, &preview.head, "[literal].txt").unwrap().text.contains("+literal addition"));
+        assert!(outgoing_commit_diff(&git, &local, &preview.head, "binary.dat").unwrap().text.contains("Binary files"));
+        assert!(outgoing_commit_diff(&git, &local, "--bad-option", "original.txt").is_err());
+        assert!(outgoing_commit_diff(&git, &local, &preview.upstream_head, "original.txt").is_err());
+        assert!(outgoing_commit_diff(&git, &local, &preview.head, "../outside").is_err());
+        assert!(outgoing_commit_diff(&git, &local, &preview.head, ":(glob)*").is_err());
+        assert_eq!(fs::read_to_string(local.join("original.txt")).unwrap(), "working tree content\n");
+        assert!(String::from_utf8_lossy(&run(&git, &local, &["show", ":original.txt"]).unwrap()).contains("uncommitted content"));
+    }
+    #[test]
+    fn outgoing_diff_handles_rename_deletion_and_truncation() {
+        let (_root, git, local, _remote) = push_fixture();
+        exec(&git, &local, &["mv", "original.txt", "renamed.txt"]);
+        action(&git, &local, "commit", &[], Some("Rename")).unwrap();
+        let renamed = outgoing(&git, &local).unwrap();
+        let diff = outgoing_commit_diff(&git, &local, &renamed.head, "renamed.txt").unwrap();
+        assert!(diff.text.contains("rename from original.txt") && diff.text.contains("rename to renamed.txt"));
+        exec(&git, &local, &["rm", "renamed.txt"]);
+        fs::write(local.join("large.txt"), "x".repeat(512 * 1024 + 20)).unwrap();
+        action(&git, &local, "stage", &["large.txt".into()], None).unwrap();
+        action(&git, &local, "commit", &[], Some("Delete and add large file")).unwrap();
+        let deleted = outgoing(&git, &local).unwrap();
+        let diff = outgoing_commit_diff(&git, &local, &deleted.head, "renamed.txt").unwrap();
+        assert!(diff.text.contains("+++ /dev/null") && diff.text.contains("-original"));
+        let large = outgoing_commit_diff(&git, &local, &deleted.head, "large.txt").unwrap();
+        assert!(large.truncated && large.text.len() == 512 * 1024);
+        // A later commit does not change the preview of the earlier rename.
+        assert!(outgoing_commit_diff(&git, &local, &renamed.head, "renamed.txt").unwrap().text.contains("rename from original.txt"));
+    }
+    #[test]
+    fn outgoing_diff_compares_merges_to_first_parent_and_supports_root() {
+        let (_root, git, local, _remote) = push_fixture();
+        exec(&git, &local, &["checkout", "-qb", "feature"]);
+        fs::write(local.join("feature.txt"), "feature content\n").unwrap();
+        action(&git, &local, "stage", &["feature.txt".into()], None).unwrap();
+        action(&git, &local, "commit", &[], Some("Feature")).unwrap();
+        exec(&git, &local, &["checkout", "-q", "main"]);
+        exec(&git, &local, &["commit", "--allow-empty", "-qm", "Main"]);
+        let first_parent = outgoing(&git, &local).unwrap().head;
+        exec(&git, &local, &["merge", "--no-ff", "-qm", "Merge feature", "feature"]);
+        let merged = outgoing(&git, &local).unwrap();
+        let diff = outgoing_commit_diff(&git, &local, &merged.head, "feature.txt").unwrap();
+        assert_eq!(diff.before_revision.as_deref(), Some(first_parent.as_str()));
+        assert!(diff.text.contains("+feature content"));
+        exec(&git, &local, &["checkout", "--orphan", "fresh"]);
+        exec(&git, &local, &["rm", "-rf", "."]);
+        fs::write(local.join("root.txt"), "root content\n").unwrap();
+        action(&git, &local, "stage", &["root.txt".into()], None).unwrap();
+        action(&git, &local, "commit", &[], Some("Root")).unwrap();
+        exec(&git, &local, &["branch", "--set-upstream-to", "origin/published"]);
+        let root = outgoing(&git, &local).unwrap();
+        let diff = outgoing_commit_diff(&git, &local, &root.head, "root.txt").unwrap();
+        assert!(diff.before_revision.is_none() && diff.text.contains("+root content"));
     }
     #[test]
     fn push_refuses_a_changed_branch_tip_after_review() {
