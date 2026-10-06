@@ -1,5 +1,5 @@
 import { t } from "@/lib/i18n";
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 type DiffLine = { number: number; text: string };
 
@@ -167,6 +167,7 @@ export function SideBySideDiff({
   const rows = parseDiff(text);
   const oldPane = useRef<HTMLDivElement>(null);
   const newPane = useRef<HTMLDivElement>(null);
+  const singlePane = useRef<HTMLDivElement>(null);
   const oldGrid = useRef<HTMLDivElement>(null);
   const newGrid = useRef<HTMLDivElement>(null);
   const [horizontalOverflow, setHorizontalOverflow] = useState(0);
@@ -203,7 +204,7 @@ export function SideBySideDiff({
     }
   }, [text]);
 
-  function syncScroll(source: HTMLDivElement, peer: HTMLDivElement | null) {
+  const syncScroll = useCallback((source: HTMLDivElement, peer: HTMLDivElement | null) => {
     const previous = scrollPositions.current.get(source) ?? { top: 0, left: 0 };
     scrollPositions.current.set(source, { top: source.scrollTop, left: source.scrollLeft });
     if (!peer) return;
@@ -212,7 +213,28 @@ export function SideBySideDiff({
     // Record the actual, possibly clamped position so the peer's scroll event
     // cannot bounce back or reset the other axis when one side is shorter.
     scrollPositions.current.set(peer, { top: peer.scrollTop, left: peer.scrollLeft });
-  }
+  }, []);
+
+  useEffect(() => {
+    const panes = [oldPane.current, newPane.current, singlePane.current].filter(
+      (pane): pane is HTMLDivElement => pane !== null,
+    );
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+      const pane = event.currentTarget as HTMLDivElement;
+      const delta = event.deltaY || event.deltaX;
+      if (!delta || pane.scrollWidth <= pane.clientWidth) return;
+      // A native non-passive listener can cancel the browser's default motion
+      // even inside the modal's scroll lock. Preserve already-horizontal input.
+      event.preventDefault();
+      const unit = event.deltaMode === 1 ? parseFloat(getComputedStyle(pane).lineHeight) || 24
+        : event.deltaMode === 2 ? pane.clientWidth : 1;
+      pane.scrollLeft += delta * unit;
+      syncScroll(pane, pane === oldPane.current ? newPane.current : pane === newPane.current ? oldPane.current : null);
+    };
+    for (const pane of panes) pane.addEventListener("wheel", handleWheel, { passive: false });
+    return () => { for (const pane of panes) pane.removeEventListener("wheel", handleWheel); };
+  }, [isNewFile, syncScroll]);
 
   function renderRows(side: "old" | "new") {
     return rows.map((row, index) => {
@@ -251,7 +273,7 @@ export function SideBySideDiff({
       {isNewFile ? (
         <div className="flex h-full min-h-0 flex-col">
           <div className="shrink-0 border-b border-border bg-muted px-4 py-2 font-sans text-xs font-medium text-muted-foreground shadow-sm">{t("New file ·")}{" "}{staged ? t("Index · staged") : t("Working tree")}</div>
-          <div dir="ltr" className="diff-viewport min-h-0 min-w-0 flex-1 overflow-auto">
+          <div ref={singlePane} dir="ltr" className="diff-viewport min-h-0 min-w-0 flex-1 overflow-auto">
             <div className="grid w-max min-w-full grid-cols-[3.5rem_max-content]">{renderNewFileRows()}</div>
             {truncated && <p className="w-max min-w-full border-t px-3 py-2 font-sans text-xs text-amber-500">{t("Preview truncated at 512 KB.")}</p>}
           </div>

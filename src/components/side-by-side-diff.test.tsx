@@ -55,3 +55,66 @@ it("does not pull a longer pane back when its shorter peer clamps horizontal scr
   fireEvent.scroll(before, { target: { scrollLeft: 20 } });
   expect(after.scrollLeft).toBe(20);
 });
+
+function mockOverflow(pane: HTMLElement) {
+  Object.defineProperties(pane, {
+    scrollWidth: { configurable: true, value: 1000 },
+    clientWidth: { configurable: true, value: 300 },
+  });
+  pane.style.lineHeight = "20px";
+}
+
+it.each(["en", "fa"] as const)("uses Shift-wheel from either pane without vertical movement or duplicate horizontal input in %s", language => {
+  act(() => setLanguage(language));
+  render(<SideBySideDiff staged={false} truncated={false} text={"@@ -1 +1 @@\n-old\n+new"} />);
+  const before = screen.getByLabelText(t("{label} code", { label: t("Index") }));
+  const after = screen.getByLabelText(t("{label} code", { label: t("Working tree") }));
+  mockOverflow(before); mockOverflow(after);
+  const wheel = (pane: HTMLElement, options: WheelEventInit) => {
+    const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, shiftKey: true, ...options });
+    fireEvent(pane.querySelector("code")!, event);
+    expect(event.defaultPrevented).toBe(true);
+  };
+  wheel(before, { deltaY: 90 });
+  expect([before.scrollLeft, after.scrollLeft]).toEqual([90, 90]);
+  wheel(after, { deltaY: -30 });
+  expect([before.scrollLeft, after.scrollLeft]).toEqual([60, 60]);
+  wheel(after, { deltaX: 15, deltaY: 0 });
+  fireEvent.scroll(after);
+  expect([before.scrollLeft, after.scrollLeft]).toEqual([75, 75]);
+  wheel(before, { deltaY: 2, deltaMode: 1 });
+  expect([before.scrollLeft, after.scrollLeft]).toEqual([115, 115]);
+  wheel(after, { deltaY: 1, deltaMode: 2 });
+  expect([before.scrollLeft, after.scrollLeft]).toEqual([415, 415]);
+  expect([before.scrollTop, after.scrollTop]).toEqual([0, 0]);
+});
+
+it("leaves ordinary scrolling, zoom shortcuts and non-overflowing panes to the browser", () => {
+  render(<SideBySideDiff staged={false} truncated={false} text={"@@ -1 +1 @@\n-old\n+new"} />);
+  const pane = screen.getByLabelText("Index code");
+  const noOverflow = new WheelEvent("wheel", { cancelable: true, shiftKey: true, deltaY: 90 });
+  fireEvent(pane, noOverflow);
+  expect(noOverflow.defaultPrevented).toBe(false);
+  mockOverflow(pane);
+  for (const options of [{ shiftKey: false }, { shiftKey: true, ctrlKey: true }, { shiftKey: true, metaKey: true }, { shiftKey: true, altKey: true }]) {
+    const event = new WheelEvent("wheel", { cancelable: true, deltaY: 90, ...options });
+    fireEvent(pane, event);
+    expect(event.defaultPrevented).toBe(false);
+  }
+  expect(pane.scrollLeft).toBe(0);
+});
+
+it("supports Shift-wheel on a new file and removes the listener when the preview closes", () => {
+  const view = render(<SideBySideDiff staged={false} truncated={false} newFile text={"@@ -0,0 +1 @@\n+long new line"} />);
+  const pane = screen.getByLabelText("New file contents").querySelector<HTMLElement>(".diff-viewport")!;
+  mockOverflow(pane);
+  const event = new WheelEvent("wheel", { cancelable: true, shiftKey: true, deltaY: 50 });
+  fireEvent(pane, event);
+  expect(event.defaultPrevented).toBe(true);
+  expect(pane.scrollLeft).toBe(50);
+  view.unmount();
+  const detached = new WheelEvent("wheel", { cancelable: true, shiftKey: true, deltaY: 50 });
+  fireEvent(pane, detached);
+  expect(detached.defaultPrevented).toBe(false);
+  expect(pane.scrollLeft).toBe(50);
+});
