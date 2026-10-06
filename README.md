@@ -159,6 +159,10 @@ Pull uses `git pull --ff-only --no-rebase --no-edit`. Repositories with local ch
 
 Open a repository and select its **Push** tab to review outgoing commits and the files changed by the selected commit. Click a file to compare the commit with its first parent in a synchronized side-by-side diff. The file list moves into the sidebar; close the diff to return to the outgoing commits. **Push** sends the previewed branch tip to the tracked remote branch; local uncommitted changes are not included. If the branch changes after the preview, refresh the list before pushing. A remote branch that is ahead must be fetched and pulled first.
 
+### Git sign-in
+
+If a push fails because authentication is missing or expired, GitOrbit shows **Sign in to Git** and the remote host. Complete the Git Credential Manager dialog, then choose **Retry push**. Sign-in checks access with a dry run; it does not send your commits. You can cancel, and sign-in times out after three minutes. If the credential manager is missing, **Set up Git sign-in** opens the [official installation guide](https://github.com/git-ecosystem/git-credential-manager/blob/main/docs/install.md); install and configure it, then recheck. Use an access token when your server requires one. SSH remotes need an SSH key configured outside the app. GitOrbit does not collect passwords, and background scans never open login dialogs.
+
 ### Git history
 
 The graph follows actual commit parents in topological order, including merge connections and local branch, remote, and tag labels. Choose **All branches** or **Current HEAD**. History starts with 200 commits; load more in batches up to 5,000. Shallow clones show only locally available history. Fetch first to update remote branch labels.

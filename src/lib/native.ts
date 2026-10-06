@@ -96,6 +96,12 @@ export interface CommitDiff {
   beforeRevision: string | null;
   afterRevision: string;
 }
+export interface AuthenticationInfo {
+  target: string;
+  host: string;
+  canSignIn: boolean;
+  reason: string | null;
+}
 export const native = {
   available: isTauri,
   environment: () => invoke<Environment>("check_environment"),
@@ -122,6 +128,10 @@ export const native = {
     invoke<CommitDiff>("repository_commit_diff", { workspaceId, path, commitHash, file }),
   push: (workspaceId: string, path: string, expectedHead: string, expectedUpstreamHead: string) =>
     invoke<string>("push_repository", { workspaceId, path, expectedHead, expectedUpstreamHead }),
+  authentication: (workspaceId: string, path: string) => invoke<AuthenticationInfo>("repository_authentication", { workspaceId, path }),
+  signIn: (workspaceId: string, path: string, target: string, expectedHead: string, expectedUpstreamHead: string, sessionId: string) => invoke<void>("sign_in_repository", { workspaceId, path, target, expectedHead, expectedUpstreamHead, sessionId }),
+  cancelSignIn: (workspaceId: string, path: string, sessionId: string) => invoke<void>("cancel_git_sign_in", { workspaceId, path, sessionId }),
+  signInSetup: () => invoke<void>("open_git_sign_in_setup"),
   changes: (workspaceId: string, path: string) => invoke<Repository>("repository_changes", { workspaceId, path }),
   diff: (workspaceId: string, path: string, file: string, staged: boolean) => invoke<{text: string; truncated: boolean}>("repository_diff", { workspaceId, path, file, staged }),
   action: (workspaceId: string, path: string, action: "stage" | "unstage" | "commit" | "pull", paths: string[] = [], message: string | null = null) => invoke<string>("repository_action", { workspaceId, path, action, paths, message }),

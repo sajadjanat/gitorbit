@@ -86,7 +86,7 @@ fn resolve_remote_target(
         .ok_or_else(|| "The tracked upstream is not a configured remote branch.".into())
 }
 
-fn read_upstream(
+pub(crate) fn read_upstream(
     git: &Path,
     repo: &Path,
 ) -> Result<(String, String, String, String, String, String), String> {
@@ -323,12 +323,20 @@ fn parse_name_status(bytes: &[u8]) -> Result<Vec<CommitFile>, String> {
     Ok(files)
 }
 
-pub fn push(
+pub(crate) struct PushPlan {
+    pub remote: String,
+    pub refspec: String,
+    source_branch: String,
+    destination_branch: String,
+    count: usize,
+}
+
+pub(crate) fn push_plan(
     git: &Path,
     repo: &Path,
     expected_head: &str,
     expected_upstream_head: &str,
-) -> Result<String, String> {
+) -> Result<PushPlan, String> {
     if !matches!(expected_head.len(), 40 | 64)
         || !expected_head.bytes().all(|byte| byte.is_ascii_hexdigit())
         || !matches!(expected_upstream_head.len(), 40 | 64)
@@ -370,6 +378,11 @@ pub fn push(
     }
     let destination = format!("refs/heads/{destination_branch}");
     let refspec = format!("HEAD:{destination}");
+    Ok(PushPlan { remote, refspec, source_branch, destination_branch, count })
+}
+
+pub fn push(git: &Path, repo: &Path, expected_head: &str, expected_upstream_head: &str) -> Result<String, String> {
+    let PushPlan { remote, refspec, source_branch, destination_branch, count } = push_plan(git, repo, expected_head, expected_upstream_head)?;
     let output = run(
         git,
         repo,

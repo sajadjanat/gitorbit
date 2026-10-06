@@ -1,4 +1,5 @@
 pub mod git;
+pub mod auth;
 pub mod history;
 mod install;
 pub mod version_control;
@@ -24,6 +25,7 @@ struct AppState {
     runtimes: Mutex<HashMap<String, Arc<Mutex<Runtime>>>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
     operation_locks: Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>,
+    auth_sessions: Arc<auth::AuthSessions>,
 }
 fn config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.path()
@@ -297,6 +299,39 @@ async fn repository_commit_diff(
     }).await.map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn repository_authentication(state: State<'_, AppState>, workspace_id: String, path: String) -> Result<auth::AuthenticationInfo, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        auth::info(&git, &path)
+    }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn sign_in_repository(state: State<'_, AppState>, workspace_id: String, path: String, target: String, expected_head: String, expected_upstream_head: String, session_id: String) -> Result<(), String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let sessions = state.auth_sessions.clone();
+    let lock = state.operation_locks.lock().map_err(|_| "Could not manage sign-in.")?.entry(path.clone()).or_default().clone();
+    let cancelled = sessions.begin(&session_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = (|| {
+            let _guard = lock.lock().map_err(|_| "Could not manage sign-in.")?;
+            let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+            auth::sign_in(&git, &path, &target, &expected_head, &expected_upstream_head, &cancelled)
+        })();
+        sessions.finish(&session_id);
+        result
+    }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+fn cancel_git_sign_in(state: State<'_, AppState>, workspace_id: String, path: String, session_id: String) -> Result<(), String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    state.auth_sessions.cancel(&session_id, &path)
+}
+#[tauri::command]
+fn open_git_sign_in_setup(app: tauri::AppHandle) -> Result<(), String> {
+    app.opener().open_url(auth::SETUP_URL, None::<&str>).map_err(|e| e.to_string())
+}
+#[tauri::command]
 async fn push_repository(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -486,7 +521,7 @@ pub fn run() {
             }
             #[cfg(not(debug_assertions))] let _ = (webview, payload);
         })
-        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, repository_commit_diff, push_repository, repository_changes, repository_diff, repository_action, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
+        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, repository_commit_diff, repository_authentication, sign_in_repository, cancel_git_sign_in, open_git_sign_in_setup, push_repository, repository_changes, repository_diff, repository_action, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
         .run(context).expect("error while running GitOrbit");
 }
 

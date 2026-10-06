@@ -15,6 +15,8 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SideBySideDiff } from "@/components/side-by-side-diff";
+import { GitAuthentication } from "@/components/git-authentication";
+import { isAuthenticationError, redactGitError } from "@/lib/git-errors";
 import { native, type CommitDiff, type CommitFile, type Outgoing, type OutgoingCommit } from "@/lib/native";
 
 const dateFormat = { format: (value: Date) => date(value, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) };
@@ -239,7 +241,7 @@ export function PushPreview({
         </div>
       </div>
 
-      {error && <Alert variant="destructive" className="mx-4 mt-3 w-auto"><AlertDescription>{t(error)}</AlertDescription></Alert>}
+      {error && (isAuthenticationError(error) && outgoing ? <GitAuthentication key={`${workspaceId}-${path}-${error}`} workspaceId={workspaceId} path={path} error={error} expectedHead={outgoing.head} expectedUpstreamHead={outgoing.upstreamHead} blocked={blocked || pushing} onBusyChange={onBusyChange} onRetry={() => void push()} /> : <Alert variant="destructive" className="mx-4 mt-3 w-auto"><AlertDescription>{t(redactGitError(error))}</AlertDescription></Alert>)}
       {notice && <Alert className="mx-4 mt-3 w-auto"><AlertDescription className="whitespace-pre-wrap">{t(notice)}</AlertDescription></Alert>}
       {(behind ?? 0) > 0 && <Alert className="mx-4 mt-3 w-auto"><AlertDescription>{t("The remote has {count} incoming commits. Fetch and pull before pushing.", {count: behind ?? 0})}</AlertDescription></Alert>}
 

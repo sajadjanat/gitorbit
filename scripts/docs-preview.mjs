@@ -86,6 +86,9 @@ if (new URLSearchParams(location.search).get('git') === 'missing') { data.enviro
 window.isTauri = true;
 window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
 let roots = data.workspaces; let next = 0;
+// Optional sign-in demo: only fixtures change, never credentials or Git refs.
+const authDemo = new URLSearchParams(location.search).get('auth');
+let signedIn = false;
 window.__TAURI_INTERNALS__ = {
  transformCallback: () => ++next,
  invoke: async (command,args) => {
@@ -97,6 +100,13 @@ window.__TAURI_INTERNALS__ = {
   if(command==='scan_workspace') return data.snapshots[args.workspaceId];
   if(command==='repository_history') return data.history;
   if(command==='repository_outgoing') return data.outgoing;
+  if(command==='push_repository' && authDemo) {
+    if(!signedIn) throw new Error("remote: Failed to authenticate user\\nfatal: Authentication failed for 'https://git.example.invalid/demo/repo.git/'");
+    return 'Documentation demo completed. No repository was changed.';
+  }
+  if(command==='repository_authentication') return {target:'https://git.example.invalid/demo/repo.git/',host:'https://git.example.invalid',canSignIn:authDemo!=='missing',reason:authDemo==='missing'?'Install and configure Git Credential Manager, then refresh this page.':null};
+  if(command==='sign_in_repository') { signedIn=true; return null; }
+  if(command==='cancel_git_sign_in' || command==='open_git_sign_in_setup') return null;
   if(command==='repository_commit_files') return data.commitFiles;
   if(command==='repository_commit_diff') {
     const file = data.commitFiles.find(file => file.path === args.file);

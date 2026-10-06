@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { native, type CommitDiff, type Outgoing } from "@/lib/native";
 import { setLanguage, t } from "@/lib/i18n";
 import { PushPreview } from "./push-preview";
-vi.mock("@/lib/native", () => ({ native: { outgoing: vi.fn(), commitFiles: vi.fn(), commitDiff: vi.fn(), push: vi.fn() } }));
+vi.mock("@/lib/native", () => ({ native: { outgoing: vi.fn(), commitFiles: vi.fn(), commitDiff: vi.fn(), push: vi.fn(), authentication: vi.fn(), signIn: vi.fn(), cancelSignIn: vi.fn(), signInSetup: vi.fn() } }));
 const diff: CommitDiff = { text: "--- a/server.ts\n+++ b/server.ts\n@@ -1 +1 @@\n-old committed code\n+new committed code\n", truncated: false, beforeRevision: "b".repeat(40), afterRevision: "a".repeat(40) };
 const outgoing: Outgoing = { head: "a".repeat(40), upstreamHead: "b".repeat(40), sourceBranch: "feature", remote: "origin", destinationBranch: "main", totalCommits: 1, hasMore: false, commits: [{ hash: "a".repeat(40), subject: "Update server", author: "Demo", timestamp: 1780000000 }] };
 const props = { workspaceId: "demo", path: "/demo", upstream: "origin/main", behind: 0, onPushed: vi.fn() };
@@ -15,8 +15,32 @@ beforeEach(() => {
   vi.mocked(native.outgoing).mockResolvedValue(outgoing);
   vi.mocked(native.commitFiles).mockResolvedValue([{ path: "server.ts", originalPath: null, status: "M" }]);
   vi.mocked(native.commitDiff).mockResolvedValue(diff);
+  vi.mocked(native.authentication).mockResolvedValue({ target: "https://git.example.invalid/team/repo.git", host: "https://git.example.invalid", canSignIn: true, reason: null });
 });
 afterEach(() => setLanguage("en"));
+
+it("offers sign-in after authentication failure and retries only after an explicit click", async () => {
+  let finish!: () => void;
+  vi.mocked(native.push).mockRejectedValueOnce("remote: Failed to authenticate user\nfatal: Authentication failed for 'https://git.example.invalid/team/repo.git/'").mockResolvedValueOnce("Pushed successfully.");
+  vi.mocked(native.signIn).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const user = userEvent.setup(); const onBusyChange = vi.fn();
+  render(<PushPreview {...props} onBusyChange={onBusyChange} />);
+  await screen.findByText("server.ts");
+  await user.click(screen.getByRole("button", { name: "Push 1 commit" }));
+  expect(await screen.findByText("Git sign-in required")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Sign in to Git" })).toBeEnabled());
+  await user.click(screen.getByRole("button", { name: "Sign in to Git" }));
+  expect(native.signIn).toHaveBeenCalledWith("demo", "/demo", "https://git.example.invalid/team/repo.git", outgoing.head, outgoing.upstreamHead, expect.any(String));
+  expect(onBusyChange).toHaveBeenLastCalledWith(true);
+  await act(async () => finish());
+  expect(screen.getByText("Git sign-in completed")).toBeInTheDocument();
+  expect(onBusyChange).toHaveBeenLastCalledWith(false);
+  expect(native.push).toHaveBeenCalledTimes(1);
+  await user.click(screen.getByRole("button", { name: "Retry push" }));
+  expect(native.push).toHaveBeenLastCalledWith("demo", "/demo", outgoing.head, outgoing.upstreamHead);
+  expect(native.push).toHaveBeenCalledTimes(2);
+  expect(props.onPushed).toHaveBeenCalledOnce();
+});
 
 it.each(["en", "fa", "ar", "zh"] as const)("moves files into the commit column, compares committed revisions, and restores the list in %s", async (language) => {
   setLanguage(language);
