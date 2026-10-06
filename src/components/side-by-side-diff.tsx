@@ -1,5 +1,5 @@
 import { t } from "@/lib/i18n";
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 type DiffLine = { number: number; text: string };
 
@@ -167,8 +167,34 @@ export function SideBySideDiff({
   const rows = parseDiff(text);
   const oldPane = useRef<HTMLDivElement>(null);
   const newPane = useRef<HTMLDivElement>(null);
+  const oldGrid = useRef<HTMLDivElement>(null);
+  const newGrid = useRef<HTMLDivElement>(null);
+  const [horizontalOverflow, setHorizontalOverflow] = useState(0);
+  const scrollPositions = useRef(new WeakMap<HTMLDivElement, { top: number; left: number }>());
+
+  useLayoutEffect(() => {
+    if (isNewFile) {
+      setHorizontalOverflow(0);
+      return;
+    }
+    const before = oldPane.current;
+    const after = newPane.current;
+    const beforeGrid = oldGrid.current;
+    const afterGrid = newGrid.current;
+    if (!before || !after || !beforeGrid || !afterGrid) return;
+    const measure = () => setHorizontalOverflow(Math.max(
+      0,
+      beforeGrid.scrollWidth - before.clientWidth,
+      afterGrid.scrollWidth - after.clientWidth,
+    ));
+    const observer = new ResizeObserver(measure);
+    for (const element of [before, after, beforeGrid, afterGrid]) observer.observe(element);
+    measure();
+    return () => observer.disconnect();
+  }, [text, isNewFile]);
 
   useEffect(() => {
+    scrollPositions.current = new WeakMap();
     for (const pane of [oldPane.current, newPane.current]) {
       if (pane) {
         pane.scrollTop = 0;
@@ -176,6 +202,17 @@ export function SideBySideDiff({
       }
     }
   }, [text]);
+
+  function syncScroll(source: HTMLDivElement, peer: HTMLDivElement | null) {
+    const previous = scrollPositions.current.get(source) ?? { top: 0, left: 0 };
+    scrollPositions.current.set(source, { top: source.scrollTop, left: source.scrollLeft });
+    if (!peer) return;
+    if (source.scrollTop !== previous.top) peer.scrollTop = source.scrollTop;
+    if (source.scrollLeft !== previous.left) peer.scrollLeft = source.scrollLeft;
+    // Record the actual, possibly clamped position so the peer's scroll event
+    // cannot bounce back or reset the other axis when one side is shorter.
+    scrollPositions.current.set(peer, { top: peer.scrollTop, left: peer.scrollLeft });
+  }
 
   function renderRows(side: "old" | "new") {
     return rows.map((row, index) => {
@@ -227,13 +264,11 @@ export function SideBySideDiff({
               ref={oldPane}
               dir="ltr" className="diff-viewport min-h-0 min-w-0 flex-1 overflow-auto"
               aria-label={t("{label} code", {label: beforeLabel})}
-              onScroll={(event) => {
-                const peer = newPane.current;
-                if (peer && peer.scrollTop !== event.currentTarget.scrollTop) peer.scrollTop = event.currentTarget.scrollTop;
-              }}
+              onScroll={(event) => syncScroll(event.currentTarget, newPane.current)}
             >
-              <div className="grid w-max min-w-full grid-cols-[3.5rem_max-content]">{renderRows("old")}</div>
+              <div ref={oldGrid} className="grid w-max min-w-full grid-cols-[3.5rem_max-content]">{renderRows("old")}</div>
               {truncated && <p className="w-max min-w-full border-t px-3 py-2 font-sans text-xs text-amber-500">{t("Preview truncated at 512 KB.")}</p>}
+              <div aria-hidden="true" className="h-px" style={{ width: `calc(100% + ${horizontalOverflow}px)` }} />
             </div>
           </section>
           <section className="flex min-h-0 min-w-0 flex-col" aria-label={t("{label} version", {label: afterLabel})}>
@@ -242,13 +277,11 @@ export function SideBySideDiff({
               ref={newPane}
               dir="ltr" className="diff-viewport min-h-0 min-w-0 flex-1 overflow-auto"
               aria-label={t("{label} code", {label: afterLabel})}
-              onScroll={(event) => {
-                const peer = oldPane.current;
-                if (peer && peer.scrollTop !== event.currentTarget.scrollTop) peer.scrollTop = event.currentTarget.scrollTop;
-              }}
+              onScroll={(event) => syncScroll(event.currentTarget, oldPane.current)}
             >
-              <div className="grid w-max min-w-full grid-cols-[3.5rem_max-content]">{renderRows("new")}</div>
+              <div ref={newGrid} className="grid w-max min-w-full grid-cols-[3.5rem_max-content]">{renderRows("new")}</div>
               {truncated && <p className="w-max min-w-full border-t px-3 py-2 font-sans text-xs text-amber-500">{t("Preview truncated at 512 KB.")}</p>}
+              <div aria-hidden="true" className="h-px" style={{ width: `calc(100% + ${horizontalOverflow}px)` }} />
             </div>
           </section>
         </div>

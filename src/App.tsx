@@ -168,7 +168,6 @@ export default function App() {
   const [detail, setDetail] = useState<{
     workspaceId: string;
     path: string;
-    tab?: string;
   } | null>(null);
   const [pulling, setPulling] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -239,7 +238,6 @@ export default function App() {
     setDetail({
       workspaceId,
       path: repo.path,
-      ...(repo.ahead && repo.ahead > 0 ? { tab: "push" } : {}),
     });
   }
 
@@ -879,11 +877,11 @@ export default function App() {
                 <Button variant="outline" size="sm" className="ms-auto" disabled={pulling} onClick={() => void pullRepositories(detail.workspaceId, [selected], selected.name)}><ArrowDown className="size-3.5" />{t("Pull repository")}</Button>
                 <Button variant="ghost" size="sm" onClick={() => void openRepository(detail.workspaceId, selected.path)}><FolderOpen className="size-3.5" />{t("Open folder")}</Button>
               </div>
-              <Tabs key={`${selected.path}:${detail.tab ?? "graph"}`} defaultValue={detail.tab ?? "graph"} className="flex-1 min-h-0 gap-0">
-                <TabsList className="mx-5 mb-2 shrink-0 w-fit"><TabsTrigger value="graph">{t("Git graph")}</TabsTrigger><TabsTrigger value="changes">{t("Version Control")}<span className="ms-1 text-muted-foreground">{number(selected.changed)}</span></TabsTrigger><TabsTrigger value="push">{t("Push")}<span className="ms-1 text-muted-foreground">{selected.ahead === null ? "?" : number(selected.ahead)}</span></TabsTrigger></TabsList>
-                <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory workspaceId={detail.workspaceId} path={selected.path} /></TabsContent>
+              <Tabs key={selected.path} defaultValue="changes" className="flex-1 min-h-0 gap-0">
+                <TabsList className="mx-5 mb-2 shrink-0 w-fit"><TabsTrigger value="changes">{t("Version Control")}<span className="ms-1 text-muted-foreground">{number(selected.changed)}</span></TabsTrigger><TabsTrigger value="push">{t("Push")}<span className="ms-1 text-muted-foreground">{selected.ahead === null ? "?" : number(selected.ahead)}</span></TabsTrigger><TabsTrigger value="graph">{t("Git graph")}</TabsTrigger></TabsList>
                 <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
                 <TabsContent value="push" className="m-0 flex flex-1 min-h-0 border-t"><PushPreview workspaceId={detail.workspaceId} path={selected.path} upstream={selected.upstream} behind={selected.behind} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onPushed={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
+                <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory workspaceId={detail.workspaceId} path={selected.path} /></TabsContent>
               </Tabs>
             </>}
           </SheetContent>

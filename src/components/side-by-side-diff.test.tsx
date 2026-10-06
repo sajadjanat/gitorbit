@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { setLanguage, t } from "@/lib/i18n";
 import { expect, it } from "vitest";
 import { SideBySideDiff } from "./side-by-side-diff";
 it("shows additions and removals in the correct version panes", () => {
@@ -14,4 +15,43 @@ it("recognizes a staged new file behind Git metadata and labels it as index cont
   expect(screen.getByText("New file · Index · staged")).toBeInTheDocument();
   expect(screen.getByText("hello")).toBeInTheDocument();
   expect(screen.queryByLabelText("Side-by-side diff")).not.toBeInTheDocument();
+});
+
+it.each(["en", "fa"] as const)("synchronizes both scroll axes from either pane in %s and resets a new diff", language => {
+  act(() => setLanguage(language));
+  const view = render(<SideBySideDiff staged={false} truncated={false} text={"@@ -1 +1 @@\n-old\n+new"} />);
+  const before = screen.getByLabelText(t("{label} code", { label: t("Index") }));
+  const after = screen.getByLabelText(t("{label} code", { label: t("Working tree") }));
+  fireEvent.scroll(before, { target: { scrollLeft: 160, scrollTop: 72 } });
+  expect(after.scrollLeft).toBe(160);
+  expect(after.scrollTop).toBe(72);
+  fireEvent.scroll(after); // The programmatic scroll must not bounce back.
+  fireEvent.scroll(after, { target: { scrollLeft: 64, scrollTop: 24 } });
+  expect(before.scrollLeft).toBe(64);
+  expect(before.scrollTop).toBe(24);
+  view.rerender(<SideBySideDiff staged={false} truncated={false} text={"@@ -1 +1 @@\n-other\n+next"} />);
+  expect([before.scrollLeft, after.scrollLeft, before.scrollTop, after.scrollTop]).toEqual([0, 0, 0, 0]);
+  fireEvent.scroll(after, { target: { scrollLeft: 90 } });
+  expect(before.scrollLeft).toBe(90);
+});
+
+it("does not pull a longer pane back when its shorter peer clamps horizontal scrolling", () => {
+  render(<SideBySideDiff staged={false} truncated={false} text={"@@ -1 +1 @@\n-short\n+much longer line"} />);
+  const before = screen.getByLabelText("Index code");
+  const after = screen.getByLabelText("Working tree code");
+  let left = 0;
+  Object.defineProperty(before, "scrollLeft", {
+    configurable: true,
+    get: () => left,
+    set: value => { left = Math.min(40, Math.max(0, value)); },
+  });
+  fireEvent.scroll(after, { target: { scrollLeft: 200 } });
+  expect(before.scrollLeft).toBe(40);
+  fireEvent.scroll(before);
+  expect(after.scrollLeft).toBe(200);
+  fireEvent.scroll(before, { target: { scrollTop: 60 } });
+  expect(after.scrollTop).toBe(60);
+  expect(after.scrollLeft).toBe(200);
+  fireEvent.scroll(before, { target: { scrollLeft: 20 } });
+  expect(after.scrollLeft).toBe(20);
 });

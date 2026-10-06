@@ -110,9 +110,13 @@ describe("GitOrbit", () => {
     await waitFor(() => expect(native.scan).toHaveBeenCalledWith("b", false));
     expect(screen.getByText("Commit", { exact: true })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "api" }));
-    expect(await screen.findByText("Add project")).toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: /Version Control/ }));
     expect(await screen.findByText("server.ts")).toBeInTheDocument();
+    const tabs = within(screen.getByRole("dialog")).getAllByRole("tab");
+    expect(tabs.map(tab => tab.textContent)).toEqual(["Version Control2", "Push0", "Git graph"]);
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    expect(native.history).not.toHaveBeenCalled();
+    await user.click(tabs[2]);
+    expect(await screen.findByText("Add project")).toBeInTheDocument();
     await user.click(
       within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }),
     );
@@ -123,6 +127,8 @@ describe("GitOrbit", () => {
     expect(
       screen.getByText("Push", { selector: '[data-slot="badge"]' }),
     ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "phone" }));
+    expect(screen.getByRole("tab", { name: /Version Control/ })).toHaveAttribute("aria-selected", "true");
   });
   it("does not duplicate workspaces and saves closed tabs", async () => {
     const user = userEvent.setup();
