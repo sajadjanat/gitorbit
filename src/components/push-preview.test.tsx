@@ -1,15 +1,77 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
-import { native, type Outgoing } from "@/lib/native";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { native, type CommitDiff, type Outgoing } from "@/lib/native";
+import { setLanguage, t } from "@/lib/i18n";
 import { PushPreview } from "./push-preview";
-vi.mock("@/lib/native", () => ({ native: { outgoing: vi.fn(), commitFiles: vi.fn(), push: vi.fn() } }));
+vi.mock("@/lib/native", () => ({ native: { outgoing: vi.fn(), commitFiles: vi.fn(), commitDiff: vi.fn(), push: vi.fn() } }));
+const diff: CommitDiff = { text: "--- a/server.ts\n+++ b/server.ts\n@@ -1 +1 @@\n-old committed code\n+new committed code\n", truncated: false, beforeRevision: "b".repeat(40), afterRevision: "a".repeat(40) };
 const outgoing: Outgoing = { head: "a".repeat(40), upstreamHead: "b".repeat(40), sourceBranch: "feature", remote: "origin", destinationBranch: "main", totalCommits: 1, hasMore: false, commits: [{ hash: "a".repeat(40), subject: "Update server", author: "Demo", timestamp: 1780000000 }] };
 const props = { workspaceId: "demo", path: "/demo", upstream: "origin/main", behind: 0, onPushed: vi.fn() };
+const codeText = (text: string) => (_: string, node: Element | null) => node?.tagName === "CODE" && node.textContent === text;
 beforeEach(() => {
   vi.resetAllMocks();
+  setLanguage("en");
   vi.mocked(native.outgoing).mockResolvedValue(outgoing);
   vi.mocked(native.commitFiles).mockResolvedValue([{ path: "server.ts", originalPath: null, status: "M" }]);
+  vi.mocked(native.commitDiff).mockResolvedValue(diff);
+});
+afterEach(() => setLanguage("en"));
+
+it.each(["en", "fa", "ar", "zh"] as const)("moves files into the commit column, compares committed revisions, and restores the list in %s", async (language) => {
+  setLanguage(language);
+  const user = userEvent.setup();
+  render(<PushPreview {...props} />);
+  await user.click(await screen.findByRole("button", { name: /server.ts/ }));
+  expect(native.commitDiff).toHaveBeenCalledExactlyOnceWith("demo", "/demo", outgoing.head, "server.ts");
+  expect(screen.queryByRole("region", { name: t("Outgoing commits") })).not.toBeInTheDocument();
+  const files = screen.getByRole("region", { name: t("Files in selected commit") });
+  const preview = screen.getByRole("region", { name: t("File diff") });
+  expect(files.parentElement?.firstElementChild).toBe(files);
+  expect(within(files).getByRole("button", { name: /server.ts/ })).toHaveAttribute("aria-pressed", "true");
+  expect(await within(preview).findByText(codeText("old committed code"))).toBeInTheDocument();
+  expect(within(preview).getByText(codeText("new committed code"))).toBeInTheDocument();
+  expect(within(preview).getByText("bbbbbbbb")).toBeInTheDocument();
+  expect(within(preview).getByText("aaaaaaaa")).toBeInTheDocument();
+  expect(within(preview).getByText(codeText("old committed code")).closest("code")).toHaveAttribute("dir", "ltr");
+  await user.click(screen.getByRole("button", { name: t("Back to outgoing commits") }));
+  expect(screen.getByRole("region", { name: t("Outgoing commits") })).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: t("File diff") })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /server.ts/ })).toHaveFocus();
+  expect(native.push).not.toHaveBeenCalled();
+});
+
+it("ignores late file responses and can close loading or failed previews", async () => {
+  let finish!: (result: CommitDiff) => void;
+  vi.mocked(native.commitFiles).mockResolvedValue([{ path: "server.ts", originalPath: null, status: "M" }, { path: "other.ts", originalPath: null, status: "A" }]);
+  vi.mocked(native.commitDiff).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce({ ...diff, text: "--- /dev/null\n+++ b/other.ts\n@@ -0,0 +1 @@\n+added content\n" }).mockRejectedValueOnce("Could not read commit.");
+  const user = userEvent.setup(); render(<PushPreview {...props} />);
+  await user.click(await screen.findByRole("button", { name: /server.ts/ }));
+  expect(screen.getByText("Loading diff…")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /other.ts/ }));
+  expect(await screen.findByText("added content")).toBeInTheDocument();
+  expect(screen.getByLabelText("Side-by-side diff")).toBeInTheDocument();
+  await act(async () => finish(diff));
+  expect(screen.queryByText(codeText("old committed code"))).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /server.ts/ }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not read commit.");
+  await user.click(screen.getByRole("button", { name: "Back to outgoing commits" }));
+  expect(screen.getByRole("region", { name: "Outgoing commits" })).toBeInTheDocument();
+});
+
+it("closes preview on refresh and rejects a late response after closing", async () => {
+  let finish!: (result: CommitDiff) => void;
+  vi.mocked(native.commitDiff).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const user = userEvent.setup(); render(<PushPreview {...props} />);
+  await user.click(await screen.findByRole("button", { name: /server.ts/ }));
+  await user.click(screen.getByRole("button", { name: "Back to outgoing commits" }));
+  await act(async () => finish(diff));
+  expect(screen.queryByText(codeText("old committed code"))).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /server.ts/ }));
+  await screen.findByText(codeText("old committed code"));
+  await user.click(screen.getByRole("button", { name: "Refresh outgoing commits" }));
+  await screen.findByRole("region", { name: "Outgoing commits" });
+  expect(screen.queryByRole("region", { name: "File diff" })).not.toBeInTheDocument();
 });
 it("pushes the reviewed heads and holds the operation lock through completion", async () => {
   let finish!: (value: string) => void;

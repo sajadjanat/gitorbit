@@ -90,6 +90,12 @@ export interface CommitFile {
   originalPath: string | null;
   status: string;
 }
+export interface CommitDiff {
+  text: string;
+  truncated: boolean;
+  beforeRevision: string | null;
+  afterRevision: string;
+}
 export const native = {
   available: isTauri,
   environment: () => invoke<Environment>("check_environment"),
@@ -112,6 +118,8 @@ export const native = {
     invoke<Outgoing>("repository_outgoing", { workspaceId, path }),
   commitFiles: (workspaceId: string, path: string, commitHash: string) =>
     invoke<CommitFile[]>("repository_commit_files", { workspaceId, path, commitHash }),
+  commitDiff: (workspaceId: string, path: string, commitHash: string, file: string) =>
+    invoke<CommitDiff>("repository_commit_diff", { workspaceId, path, commitHash, file }),
   push: (workspaceId: string, path: string, expectedHead: string, expectedUpstreamHead: string) =>
     invoke<string>("push_repository", { workspaceId, path, expectedHead, expectedUpstreamHead }),
   changes: (workspaceId: string, path: string) => invoke<Repository>("repository_changes", { workspaceId, path }),

@@ -283,6 +283,20 @@ async fn repository_commit_files(
     .map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn repository_commit_diff(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    path: String,
+    commit_hash: String,
+    file: String,
+) -> Result<version_control::CommitDiff, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        version_control::outgoing_commit_diff(&git, &path, &commit_hash, &file)
+    }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
 async fn push_repository(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -472,7 +486,7 @@ pub fn run() {
             }
             #[cfg(not(debug_assertions))] let _ = (webview, payload);
         })
-        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, push_repository, repository_changes, repository_diff, repository_action, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
+        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, repository_commit_diff, push_repository, repository_changes, repository_diff, repository_action, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
         .run(context).expect("error while running GitOrbit");
 }
 

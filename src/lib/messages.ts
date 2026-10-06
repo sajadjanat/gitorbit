@@ -1,5 +1,20 @@
 // English source keys provide readable fallback text.
 export const messages: Record<string, {fa: string; ar: string; zh: string}> = {
+  "Back to outgoing commits": {
+    "fa": "بازگشت به کامیت‌های خروجی",
+    "ar": "العودة إلى الالتزامات الصادرة",
+    "zh": "返回待推送提交"
+  },
+  "Empty tree": {
+    "fa": "نسخهٔ خالی",
+    "ar": "شجرة فارغة",
+    "zh": "空树"
+  },
+  "Choose a file from the selected commit.": {
+    "fa": "فایلی از کامیت انتخاب‌شده را انتخاب کنید.",
+    "ar": "اختر ملفًا من الالتزام المحدد.",
+    "zh": "请选择所选提交中的文件。"
+  },
   "Language": {
     "fa": "زبان",
     "ar": "اللغة",

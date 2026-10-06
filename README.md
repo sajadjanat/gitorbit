@@ -38,7 +38,7 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 | **Clear next steps** | Colored labels identify Commit, Push, Pull, Resolve, Sync branch, and upstream problems. |
 | **Git graph** | Click a repository to see real commit history, branch lanes, merges, HEAD, branches, and tags. |
 | **Version Control** | Inspect staged, unstaged, and unversioned files; review diffs, stage a selection, unstage, and commit. |
-| **Push preview** | Review commits ahead of the tracked branch and the files in each commit, then push explicitly. |
+| **Push preview** | Review outgoing commits, open any file in a synchronized side-by-side diff, then push explicitly. |
 | **Pull one or all** | Fast-forward one repository or every repository in the active workspace, with individual results. |
 | **Your appearance** | Light, dark, or system mode; Neutral, Violet, Ocean, and Forest palettes; a custom accent color. |
 | **Four languages** | English, Persian, Arabic, and Simplified Chinese, with saved language preferences and RTL/LTR layouts. |
@@ -157,7 +157,7 @@ Pull uses `git pull --ff-only --no-rebase --no-edit`. Repositories with local ch
 
 ### Push commits
 
-When a repository is ahead of its tracked remote branch, select the row to open its **Push** tab. The preview lists outgoing commits and the files changed by the selected commit. **Push** sends the previewed branch tip to that tracked remote branch; local uncommitted changes are not included. If the branch changes after the preview, refresh the list before pushing. A remote branch that is ahead must be fetched and pulled first.
+Open a repository and select its **Push** tab to review outgoing commits and the files changed by the selected commit. Click a file to compare the commit with its first parent in a synchronized side-by-side diff. The file list moves into the sidebar; close the diff to return to the outgoing commits. **Push** sends the previewed branch tip to the tracked remote branch; local uncommitted changes are not included. If the branch changes after the preview, refresh the list before pushing. A remote branch that is ahead must be fetched and pulled first.
 
 ### Git history
 
