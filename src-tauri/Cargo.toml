@@ -1,7 +1,7 @@
 [package]
 name = "workspace-monitor"
 default-run = "workspace-monitor"
-version = "0.5.2"
+version = "0.5.3"
 description = "Live Git status across local workspaces"
 authors = ["Sepehra"]
 edition = "2021"
