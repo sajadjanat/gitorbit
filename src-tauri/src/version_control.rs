@@ -4,7 +4,7 @@ use std::{collections::HashSet, fs, io::Read, path::Path, time::Duration};
 
 const MAX_OUTGOING_COMMITS: usize = 200;
 
-fn run(git: &Path, repo: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
+pub(crate) fn run(git: &Path, repo: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     let mut command = git_command(git, repo);
     command.args(args);
     capture(command, Duration::from_secs(45))
@@ -170,7 +170,7 @@ pub fn outgoing(git: &Path, repo: &Path) -> Result<Outgoing, String> {
     })
 }
 
-fn parse_outgoing_log(bytes: &[u8]) -> Result<Vec<OutgoingCommit>, String> {
+pub(crate) fn parse_outgoing_log(bytes: &[u8]) -> Result<Vec<OutgoingCommit>, String> {
     bytes
         .split(|byte| *byte == 0x1e)
         .filter(|record| !record.is_empty())
@@ -382,12 +382,18 @@ pub(crate) fn push_plan(
 }
 
 pub fn push(git: &Path, repo: &Path, expected_head: &str, expected_upstream_head: &str) -> Result<String, String> {
+    let plan = push_plan(git, repo, expected_head, expected_upstream_head)?;
+    // Check the actual push destination; cached tracking refs may be stale.
+    if crate::sync::remote_head(git, repo, &plan.remote, &plan.destination_branch)? != expected_upstream_head {
+        let _ = crate::sync::check(git, repo, true);
+        return Err(crate::sync::REMOTE_CHANGED.into());
+    }
     let PushPlan { remote, refspec, source_branch, destination_branch, count } = push_plan(git, repo, expected_head, expected_upstream_head)?;
     let output = run(
         git,
         repo,
-        &["push", "--porcelain", remote.as_str(), refspec.as_str()],
-    )?;
+        &["push", "--porcelain", "--", remote.as_str(), refspec.as_str()],
+    ).map_err(|error| if crate::sync::is_rejection(&error) { crate::sync::REMOTE_CHANGED.into() } else { error })?;
     let output = String::from_utf8_lossy(&output)
         .trim()
         .chars()

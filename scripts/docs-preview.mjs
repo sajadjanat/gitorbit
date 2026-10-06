@@ -88,6 +88,10 @@ window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
 let roots = data.workspaces; let next = 0;
 // Optional sign-in demo: only fixtures change, never credentials or Git refs.
 const authDemo = new URLSearchParams(location.search).get('auth');
+const syncDemo = new URLSearchParams(location.search).get('sync');
+const sampleRepo = data.snapshots.studio.repositories.find(repo => repo.name === 'orbit/web');
+let syncState = {reviewToken:'sample-context',head:data.outgoing.head,upstreamHead:'d1'.padEnd(40,'0'),sourceBranch:sampleRepo.branch,remote:'origin',destinationBranch:sampleRepo.branch,ahead:syncDemo==='behind'?0:2,behind:2,dirty:syncDemo==='dirty'?1:0,conflicts:syncDemo==='conflict'?1:0,operation:syncDemo==='conflict'?'merge':null,mergeHead:syncDemo==='conflict'?'d1'.padEnd(40,'0'):null,blockedReason:null,note:null,incoming:[{hash:'d1'.padEnd(40,'0'),subject:'fix: preserve remote workspace settings',author:'Demo',timestamp:1791102000},{hash:'d2'.padEnd(40,'0'),subject:'feat: improve repository refresh',author:'Demo',timestamp:1791098400}]};
+if(syncDemo) Object.assign(sampleRepo,{ahead:syncState.ahead,behind:syncState.behind,changed:syncState.dirty,conflicts:syncState.conflicts});
 let signedIn = false;
 window.__TAURI_INTERNALS__ = {
  transformCallback: () => ++next,
@@ -100,6 +104,16 @@ window.__TAURI_INTERNALS__ = {
   if(command==='scan_workspace') return data.snapshots[args.workspaceId];
   if(command==='repository_history') return data.history;
   if(command==='repository_outgoing') return data.outgoing;
+  if(command==='repository_sync') {
+    if(args.action==='integrate') {
+      syncState={...syncState,head:'e1'.padEnd(40,'0'),ahead:3,behind:0,incoming:[]};
+      data.outgoing={...data.outgoing,head:syncState.head,upstreamHead:syncState.upstreamHead,totalCommits:3,commits:[{hash:syncState.head,subject:'Merge incoming workspace updates',author:'Demo',timestamp:1791105600},...data.outgoing.commits]};
+    }
+    if(args.action==='abort') syncState={...syncState,operation:null,mergeHead:null,conflicts:0};
+    Object.assign(sampleRepo,{ahead:syncState.ahead,behind:syncState.behind,conflicts:syncState.conflicts});
+    return structuredClone(syncState);
+  }
+  if(command==='push_repository' && syncDemo) {Object.assign(sampleRepo,{ahead:0});return 'Documentation demo completed. No repository was changed.';}
   if(command==='push_repository' && authDemo) {
     if(!signedIn) throw new Error("remote: Failed to authenticate user\\nfatal: Authentication failed for 'https://git.example.invalid/demo/repo.git/'");
     return 'Documentation demo completed. No repository was changed.';

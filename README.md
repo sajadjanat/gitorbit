@@ -117,7 +117,7 @@ The [desktop build workflow](https://github.com/sajadjanat/gitorbit/actions/work
 
 1. Open GitOrbit. If Git is missing, select **Install Git** or **Download Git**, then **Check again**.
 2. Select **Add workspace** and choose a folder containing your Git repositories. You can choose multiple folders at once.
-3. Read the **Next** column. Click a repository for its **Git graph**; switch to **Version Control** for files, diffs, and commits.
+3. Read the **Next** column. Click a repository to open **Version Control** for files, diffs, and commits; switch to **Push** or **Git graph** as needed.
 4. Select **Fetch remotes** for current upstream counts. Enable **Auto fetch** if you want those counts refreshed periodically.
 5. Select **Pull all** to update the active workspace, or **Pull repository** in a repository's dialog. Review the updated, skipped, and failed results.
 6. Open **Appearance** in the header to choose your mode, palette, and accent.
@@ -156,6 +156,8 @@ Select checkboxes, then choose **Stage selected** or **Unstage selected**. Enter
 Pull uses `git pull --ff-only --no-rebase --no-edit`. Repositories with local changes (including untracked files), detached HEAD, or no upstream are skipped. Divergent history fails without merging or rebasing. Local files are never automatically stashed, discarded, or force-reset. Resolve the reported issue and retry. Git uses your existing remote credentials.
 
 ### Push commits
+
+Before sending commits, GitOrbit checks the actual push destination for unseen changes. A rejected push opens **Sync before pushing**: select **Fetch and check** to review incoming commits, then **Pull incoming commits** for a branch that is only behind or **Merge incoming commits** when both sides have new commits. Review the refreshed push preview before pushing explicitly. Existing commit IDs are preserved; dirty files block synchronization. If a merge conflicts, open Version Control to resolve, stage, and commit the merge, or choose **Abort merge** after reviewing the warning about discarding resolution edits. Other Git operations and mismatched fetch/push destinations show guidance instead of attempting an unsafe sync. Fetch authentication failures offer sign-in and an explicit fetch retry.
 
 Open a repository and select its **Push** tab to review outgoing commits and the files changed by the selected commit. Click a file to compare the commit with its first parent in a synchronized side-by-side diff. The file list moves into the sidebar; close the diff to return to the outgoing commits. **Push** sends the previewed branch tip to the tracked remote branch; local uncommitted changes are not included. If the branch changes after the preview, refresh the list before pushing. A remote branch that is ahead must be fetched and pulled first.
 

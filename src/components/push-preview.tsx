@@ -16,7 +16,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SideBySideDiff } from "@/components/side-by-side-diff";
 import { GitAuthentication } from "@/components/git-authentication";
-import { isAuthenticationError, redactGitError } from "@/lib/git-errors";
+import { GitSync } from "@/components/git-sync";
+import { isAuthenticationError, isSyncError, redactGitError } from "@/lib/git-errors";
 import { native, type CommitDiff, type CommitFile, type Outgoing, type OutgoingCommit } from "@/lib/native";
 
 const dateFormat = { format: (value: Date) => date(value, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) };
@@ -85,6 +86,7 @@ export function PushPreview({
   onPushed,
   blocked = false,
   onBusyChange,
+  onReviewChanges,
 }: {
   workspaceId: string;
   path: string;
@@ -93,12 +95,16 @@ export function PushPreview({
   onPushed: () => void;
   blocked?: boolean;
   onBusyChange?: (busy: boolean) => void;
+  onReviewChanges?: () => void;
 }) {
   const [refresh, setRefresh] = useState(0);
   const [outgoing, setOutgoing] = useState<Outgoing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [syncNeeded, setSyncNeeded] = useState(false);
+  useEffect(() => { setSyncNeeded(false); }, [workspaceId, path]);
+  useEffect(() => { if ((behind ?? 0) > 0) setSyncNeeded(true); }, [workspaceId, path, behind]);
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [files, setFiles] = useState<CommitFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
@@ -174,7 +180,7 @@ export function PushPreview({
   }, [workspaceId, path, selectedHash, selectedFile]);
 
   const selectedCommit = outgoing?.commits.find((commit) => commit.hash === selectedHash);
-  const cannotPush = blocked || !outgoing || loading || pushing || outgoing.totalCommits === 0 || !selectedHash || filesLoading || Boolean(filesError) || (behind ?? 0) > 0;
+  const cannotPush = blocked || syncNeeded || isSyncError(error) || !outgoing || loading || pushing || outgoing.totalCommits === 0 || !selectedHash || filesLoading || Boolean(filesError) || (behind ?? 0) > 0;
 
   async function push() {
     if (cannotPush || !outgoing) return;
@@ -187,6 +193,7 @@ export function PushPreview({
       setRefresh((value) => value + 1);
     } catch (reason) {
       setError(String(reason));
+      if (isSyncError(String(reason))) setSyncNeeded(true);
     } finally {
       setPushing(false); onBusyChange?.(false);
     }
@@ -230,7 +237,7 @@ export function PushPreview({
             variant="ghost"
             size="sm"
             aria-label={t("Refresh outgoing commits")}
-            disabled={loading || pushing || !upstream}
+            disabled={blocked || loading || pushing || !upstream}
             onClick={() => { setNotice(""); setRefresh((value) => value + 1); }}
           >
             <RefreshCw className="size-3.5" />{t("Refresh")}</Button>
@@ -241,9 +248,9 @@ export function PushPreview({
         </div>
       </div>
 
-      {error && (isAuthenticationError(error) && outgoing ? <GitAuthentication key={`${workspaceId}-${path}-${error}`} workspaceId={workspaceId} path={path} error={error} expectedHead={outgoing.head} expectedUpstreamHead={outgoing.upstreamHead} blocked={blocked || pushing} onBusyChange={onBusyChange} onRetry={() => void push()} /> : <Alert variant="destructive" className="mx-4 mt-3 w-auto"><AlertDescription>{t(redactGitError(error))}</AlertDescription></Alert>)}
+      {error && !isSyncError(error) && (isAuthenticationError(error) && outgoing ? <GitAuthentication key={`${workspaceId}-${path}-${error}`} workspaceId={workspaceId} path={path} error={error} expectedHead={outgoing.head} expectedUpstreamHead={outgoing.upstreamHead} blocked={blocked || pushing} onBusyChange={onBusyChange} onRetry={() => void push()} /> : <Alert variant="destructive" className="mx-4 mt-3 w-auto"><AlertDescription>{t(redactGitError(error))}</AlertDescription></Alert>)}
       {notice && <Alert className="mx-4 mt-3 w-auto"><AlertDescription className="whitespace-pre-wrap">{t(notice)}</AlertDescription></Alert>}
-      {(behind ?? 0) > 0 && <Alert className="mx-4 mt-3 w-auto"><AlertDescription>{t("The remote has {count} incoming commits. Fetch and pull before pushing.", {count: behind ?? 0})}</AlertDescription></Alert>}
+      {(syncNeeded || isSyncError(error) || (behind ?? 0) > 0) && upstream && <GitSync key={`${workspaceId}-${path}`} workspaceId={workspaceId} path={path} error={error} blocked={blocked || pushing} onBusyChange={onBusyChange} onChanged={onPushed} onReady={() => { setSyncNeeded(false); setError(""); setNotice(""); setRefresh(value => value + 1); onPushed(); }} onReviewChanges={onReviewChanges} />}
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <section aria-label={previewFile ? t("Files in selected commit") : t("Outgoing commits")} className={`flex min-h-0 min-w-0 flex-col border-b md:shrink-0 md:border-b-0 md:border-e ${previewFile ? "max-md:max-h-[30%] md:w-[28%]" : "md:w-[44%]"}`}>

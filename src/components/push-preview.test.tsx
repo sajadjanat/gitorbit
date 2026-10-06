@@ -1,10 +1,10 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { native, type CommitDiff, type Outgoing } from "@/lib/native";
+import { native, type CommitDiff, type Outgoing, type SyncState } from "@/lib/native";
 import { setLanguage, t } from "@/lib/i18n";
 import { PushPreview } from "./push-preview";
-vi.mock("@/lib/native", () => ({ native: { outgoing: vi.fn(), commitFiles: vi.fn(), commitDiff: vi.fn(), push: vi.fn(), authentication: vi.fn(), signIn: vi.fn(), cancelSignIn: vi.fn(), signInSetup: vi.fn() } }));
+vi.mock("@/lib/native", () => ({ native: { outgoing: vi.fn(), commitFiles: vi.fn(), commitDiff: vi.fn(), push: vi.fn(), sync:vi.fn(), authentication: vi.fn(), signIn: vi.fn(), cancelSignIn: vi.fn(), signInSetup: vi.fn() } }));
 const diff: CommitDiff = { text: "--- a/server.ts\n+++ b/server.ts\n@@ -1 +1 @@\n-old committed code\n+new committed code\n", truncated: false, beforeRevision: "b".repeat(40), afterRevision: "a".repeat(40) };
 const outgoing: Outgoing = { head: "a".repeat(40), upstreamHead: "b".repeat(40), sourceBranch: "feature", remote: "origin", destinationBranch: "main", totalCommits: 1, hasMore: false, commits: [{ hash: "a".repeat(40), subject: "Update server", author: "Demo", timestamp: 1780000000 }] };
 const props = { workspaceId: "demo", path: "/demo", upstream: "origin/main", behind: 0, onPushed: vi.fn() };
@@ -122,4 +122,18 @@ it("blocks pushing during another operation and retains errors after a rejection
   expect(await screen.findByText("Refresh the push list before pushing.")).toBeInTheDocument();
   expect(onBusyChange).toHaveBeenLastCalledWith(false);
   expect(props.onPushed).not.toHaveBeenCalled();
+});
+it("recovers rejected pushes and sends only a freshly reviewed merged tip", async () => {
+  const user=userEvent.setup();const merged="c".repeat(40);
+  const state:SyncState={...outgoing,reviewToken:"context",ahead:1,behind:2,dirty:0,conflicts:0,operation:null,mergeHead:null,blockedReason:null,note:null,incoming:[]};
+  vi.mocked(native.sync).mockResolvedValueOnce(state).mockResolvedValueOnce(state).mockResolvedValueOnce({...state,head:merged,behind:0});
+  vi.mocked(native.push).mockRejectedValueOnce("error: failed to push some refs\nhint: Updates were rejected because the remote contains work that you do not have locally.").mockResolvedValue("Pushed successfully.");
+  const view=render(<PushPreview {...props}/>);await screen.findByText("server.ts");await user.click(screen.getByRole("button",{name:"Push 1 commit"}));
+  expect(await screen.findByText("Sync before pushing")).toBeInTheDocument();expect(screen.getByRole("button",{name:"Push 1 commit"})).toBeDisabled();
+  await user.click(screen.getByRole("button",{name:"Fetch and check"}));const merge=screen.getByRole("button",{name:"Merge incoming commits"});await waitFor(()=>expect(merge).toBeEnabled());await user.click(merge);
+  view.rerender(<PushPreview {...props} behind={0}/>);
+  expect(await screen.findByRole("button",{name:"Review push preview"})).toBeEnabled();expect(screen.getByRole("button",{name:"Push 1 commit"})).toBeDisabled();expect(native.push).toHaveBeenCalledTimes(1);
+  vi.mocked(native.outgoing).mockResolvedValue({...outgoing,head:merged,commits:[{...outgoing.commits[0],hash:merged}]});
+  await user.click(screen.getByRole("button",{name:"Review push preview"}));await waitFor(()=>expect(screen.getByRole("button",{name:"Push 1 commit"})).toBeEnabled());
+  await user.click(screen.getByRole("button",{name:"Push 1 commit"}));expect(native.push).toHaveBeenLastCalledWith("demo","/demo",merged,outgoing.upstreamHead);
 });

@@ -172,6 +172,7 @@ export default function App() {
   const [pulling, setPulling] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [repositoryBusy, setRepositoryBusy] = useState(false);
+  const [repositoryTab, setRepositoryTab] = useState("changes");
   const pullGuard = useRef(false);
   const [pullReport, setPullReport] = useState<{ title: string; total: number; results: { name: string; status: string; message: string }[] } | null>(null);
   const [showPullReport, setShowPullReport] = useState(false);
@@ -235,6 +236,7 @@ export default function App() {
   }
 
   function openRepositoryDetails(workspaceId: string, repo: Repository) {
+    setRepositoryTab("changes");
     setDetail({
       workspaceId,
       path: repo.path,
@@ -877,10 +879,10 @@ export default function App() {
                 <Button variant="outline" size="sm" className="ms-auto" disabled={pulling} onClick={() => void pullRepositories(detail.workspaceId, [selected], selected.name)}><ArrowDown className="size-3.5" />{t("Pull repository")}</Button>
                 <Button variant="ghost" size="sm" onClick={() => void openRepository(detail.workspaceId, selected.path)}><FolderOpen className="size-3.5" />{t("Open folder")}</Button>
               </div>
-              <Tabs key={selected.path} defaultValue="changes" className="flex-1 min-h-0 gap-0">
+              <Tabs key={selected.path} value={repositoryTab} onValueChange={setRepositoryTab} className="flex-1 min-h-0 gap-0">
                 <TabsList className="mx-5 mb-2 shrink-0 w-fit"><TabsTrigger value="changes">{t("Version Control")}<span className="ms-1 text-muted-foreground">{number(selected.changed)}</span></TabsTrigger><TabsTrigger value="push">{t("Push")}<span className="ms-1 text-muted-foreground">{selected.ahead === null ? "?" : number(selected.ahead)}</span></TabsTrigger><TabsTrigger value="graph">{t("Git graph")}</TabsTrigger></TabsList>
                 <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
-                <TabsContent value="push" className="m-0 flex flex-1 min-h-0 border-t"><PushPreview workspaceId={detail.workspaceId} path={selected.path} upstream={selected.upstream} behind={selected.behind} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onPushed={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
+                <TabsContent value="push" className="m-0 flex flex-1 min-h-0 border-t"><PushPreview onReviewChanges={() => setRepositoryTab("changes")} workspaceId={detail.workspaceId} path={selected.path} upstream={selected.upstream} behind={selected.behind} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onPushed={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
                 <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory workspaceId={detail.workspaceId} path={selected.path} /></TabsContent>
               </Tabs>
             </>}

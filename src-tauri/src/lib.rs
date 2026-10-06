@@ -1,5 +1,6 @@
 pub mod git;
 pub mod auth;
+pub mod sync;
 pub mod history;
 mod install;
 pub mod version_control;
@@ -307,7 +308,7 @@ async fn repository_authentication(state: State<'_, AppState>, workspace_id: Str
     }).await.map_err(|e| e.to_string())?
 }
 #[tauri::command]
-async fn sign_in_repository(state: State<'_, AppState>, workspace_id: String, path: String, target: String, expected_head: String, expected_upstream_head: String, session_id: String) -> Result<(), String> {
+async fn sign_in_repository(state: State<'_, AppState>, workspace_id: String, path: String, target: String, expected_head: String, expected_upstream_head: String, session_id: String, purpose: Option<String>) -> Result<(), String> {
     let path = repository_path(&state, &workspace_id, &path)?;
     let sessions = state.auth_sessions.clone();
     let lock = state.operation_locks.lock().map_err(|_| "Could not manage sign-in.")?.entry(path.clone()).or_default().clone();
@@ -316,7 +317,7 @@ async fn sign_in_repository(state: State<'_, AppState>, workspace_id: String, pa
         let result = (|| {
             let _guard = lock.lock().map_err(|_| "Could not manage sign-in.")?;
             let (git, _) = git::find_git().ok_or("Git is not installed.")?;
-            auth::sign_in(&git, &path, &target, &expected_head, &expected_upstream_head, &cancelled)
+            if purpose.as_deref() == Some("fetch") { auth::sign_in_fetch(&git, &path, &target, &expected_head, &expected_upstream_head, &cancelled) } else { auth::sign_in(&git, &path, &target, &expected_head, &expected_upstream_head, &cancelled) }
         })();
         sessions.finish(&session_id);
         result
@@ -355,6 +356,24 @@ async fn push_repository(
     })
     .await
     .map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id);
+    result
+}
+#[tauri::command]
+async fn repository_sync(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, action: String, expected_head: String, expected_upstream_head: String, expected_token: String) -> Result<sync::SyncState, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock.lock().map_err(|e| e.to_string())?;
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        match action.as_str() {
+            "inspect" => sync::check(&git, &path, false),
+            "fetch" => sync::check(&git, &path, true),
+            "integrate" => sync::integrate(&git, &path, &expected_head, &expected_upstream_head, &expected_token),
+            "abort" => sync::abort(&git, &path, &expected_head, &expected_upstream_head, &expected_token),
+            _ => Err("Unsupported Git action.".into()),
+        }
+    }).await.map_err(|e| e.to_string())?;
     let _ = app.emit("workspace-invalidated", &workspace_id);
     result
 }
@@ -521,7 +540,7 @@ pub fn run() {
             }
             #[cfg(not(debug_assertions))] let _ = (webview, payload);
         })
-        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, repository_commit_diff, repository_authentication, sign_in_repository, cancel_git_sign_in, open_git_sign_in_setup, push_repository, repository_changes, repository_diff, repository_action, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
+        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, repository_commit_diff, repository_authentication, sign_in_repository, cancel_git_sign_in, open_git_sign_in_setup, push_repository, repository_sync, repository_changes, repository_diff, repository_action, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
         .run(context).expect("error while running GitOrbit");
 }
 

@@ -83,17 +83,36 @@ pub fn info(git: &Path, repo: &Path) -> Result<AuthenticationInfo, String> {
     Ok(AuthenticationInfo { host: target.origin().ascii_serialization(), target: target.into(), can_sign_in, reason: if can_sign_in { None } else { Some("Install and configure Git Credential Manager, then refresh this page.".into()) } })
 }
 
-fn interactive_command(git: &Path, repo: &Path, manager: &str, url: &Url, refspec: &str) -> Command {
+fn interactive_base(git: &Path, repo: &Path, manager: &str) -> Command {
     let mut command = git_command(git, repo);
     // Reset other helpers only for this command so no plaintext helper receives
     // the credentials. The selected manager uses the platform's secure store.
-    command.args(["-c", "credential.helper=", "-c", &format!("credential.helper={manager}"), "push", "--dry-run", "--porcelain", url.as_str(), refspec]);
+    command.args(["-c", "credential.helper=", "-c", &format!("credential.helper={manager}")]);
     command.env("GCM_INTERACTIVE", "true").env("GCM_GUI_PROMPT", "true")
         .env("GCM_CREDENTIAL_STORE", if cfg!(windows) { "wincredman" } else if cfg!(target_os = "macos") { "keychain" } else { "secretservice" })
         .env("GCM_TRACE", "0").env("GCM_TRACE_SECRETS", "0")
         .env_remove("GIT_TRACE").env_remove("GIT_TRACE_CURL").env_remove("GIT_CURL_VERBOSE")
         .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     command
+}
+fn interactive_command(git: &Path, repo: &Path, manager: &str, url: &Url, refspec: &str) -> Command {
+    let mut command = interactive_base(git, repo, manager);
+    command.args(["push", "--dry-run", "--porcelain", "--", url.as_str(), refspec]);
+    command
+}
+pub fn sign_in_fetch(git: &Path, repo: &Path, expected_target: &str, expected_head: &str, expected_upstream: &str, cancelled: &AtomicBool) -> Result<(), String> {
+    if cancelled.load(Ordering::SeqCst) { return Err(CANCELLED.into()); }
+    let (head, upstream_head, _, upstream, remote, branch) = version_control::read_upstream(git, repo)?;
+    if head != expected_head || upstream_head != expected_upstream { return Err("The branch or incoming commits changed. Fetch and review again before syncing.".into()); }
+    let url = push_target(git, repo, &remote)?;
+    if url.as_str() != expected_target { return Err("The push destination changed. Refresh before signing in.".into()); }
+    let fetch_url = read(git, repo, &["remote", "get-url", &remote])?;
+    if https_target(String::from_utf8_lossy(&fetch_url).trim())? != url { return Err("Push and fetch destinations differ. Sync the push destination using Git, then retry.".into()); }
+    let manager = configured_manager(git, repo, &url).ok_or("Install and configure Git Credential Manager, then refresh this page.")?;
+    let mut command = interactive_base(git, repo, manager);
+    let refspec = format!("+refs/heads/{branch}:{upstream}");
+    command.args(["fetch", "--no-tags", "--", url.as_str(), &refspec]);
+    wait_for_sign_in(command, cancelled, Duration::from_secs(180))
 }
 
 fn wait_for_sign_in(mut command: Command, cancelled: &AtomicBool, timeout: Duration) -> Result<(), String> {
@@ -168,6 +187,17 @@ mod tests {
         assert_ne!(envs.get("GCM_CREDENTIAL_STORE"), Some(&Some("plaintext".into())));
         let background = git_command(Path::new("git"), Path::new("repo"));
         assert!(background.get_envs().any(|(key, value)| key == "GCM_INTERACTIVE" && value == Some(std::ffi::OsStr::new("Never"))));
+    }
+    #[test]
+    fn fetch_login_rejects_stale_review_cancel_and_distinct_destination_before_network() {
+        let (root, git) = fixture(); let outgoing = version_control::outgoing(&git, root.path()).unwrap();
+        let no = AtomicBool::new(false);
+        assert_eq!(sign_in_fetch(&git, root.path(), "", "", "", &AtomicBool::new(true)).unwrap_err(), CANCELLED);
+        assert!(sign_in_fetch(&git, root.path(), "https://git.example.invalid/team/repo.git", &outgoing.upstream_head, &outgoing.upstream_head, &no).unwrap_err().contains("changed"));
+        assert!(sign_in_fetch(&git, root.path(), "https://other.example.invalid/repo", &outgoing.head, &outgoing.upstream_head, &no).unwrap_err().contains("destination changed"));
+        read(&git, root.path(), &["remote", "set-url", "--push", "origin", "https://push.example.invalid/team/repo.git"]).unwrap();
+        assert!(sign_in_fetch(&git, root.path(), "https://push.example.invalid/team/repo.git", &outgoing.head, &outgoing.upstream_head, &no).unwrap_err().contains("destinations differ"));
+        assert_eq!(version_control::outgoing(&git, root.path()).unwrap().head, outgoing.head);
     }
     fn sleeper() -> Command {
         if cfg!(windows) { let mut cmd = command("cmd.exe"); cmd.args(["/C", "ping -n 20 127.0.0.1 > nul"]); cmd }
