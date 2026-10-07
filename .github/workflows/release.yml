@@ -61,6 +61,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+        env:
+          RUST_TEST_THREADS: 2
       - name: Prepare universal macOS CLI binary
         if: runner.os == 'macOS'
         # Tauri combines the GUI binary; its extra Cargo binary also needs lipo.

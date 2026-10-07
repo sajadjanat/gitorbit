@@ -1,6 +1,6 @@
-use crate::version_control::{self, run, OutgoingCommit};
+use crate::version_control::{self, git_path, run, OutgoingCommit};
 use serde::Serialize;
-use std::{fs, hash::{Hash, Hasher}, path::{Path, PathBuf}};
+use std::{fs, hash::{Hash, Hasher}, path::Path};
 
 pub const REMOTE_CHANGED: &str = "The remote changed. Check incoming commits and sync before pushing.";
 pub fn is_rejection(error: &str) -> bool {
@@ -20,11 +20,6 @@ pub fn remote_head(git: &Path, repo: &Path, remote: &str, branch: &str) -> Resul
         let (hash, name) = line.split_once('\t')?;
         (name == reference && matches!(hash.len(), 40 | 64) && hash.bytes().all(|b| b.is_ascii_hexdigit())).then(|| hash.to_owned())
     }).ok_or("The push destination could not be verified. Check the remote branch using Git.".into())
-}
-fn git_path(git: &Path, repo: &Path, name: &str) -> Result<PathBuf, String> {
-    let bytes = run(git, repo, &["rev-parse", "--git-path", name])?;
-    let path = PathBuf::from(String::from_utf8_lossy(&bytes).trim());
-    Ok(if path.is_absolute() { path } else { repo.join(path) })
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -55,9 +50,7 @@ pub fn check(git: &Path, repo: &Path, fetch: bool) -> Result<SyncState, String> 
     let review_token = format!("{:016x}", identity.finish());
     let state = version_control::changes(git, repo)?;
     let merge_head = fs::read_to_string(git_path(git, repo, "MERGE_HEAD")?).ok().map(|s| s.trim().to_owned());
-    let operation = if merge_head.is_some() { Some("merge".into()) }
-        else if git_path(git, repo, "rebase-merge")?.exists() || git_path(git, repo, "rebase-apply")?.exists() { Some("rebase".into()) }
-        else if git_path(git, repo, "CHERRY_PICK_HEAD")?.exists() || git_path(git, repo, "REVERT_HEAD")?.exists() { Some("other".into()) } else { None };
+    let operation = version_control::pending_operation(git, repo)?.map(str::to_owned);
     let behind = state.behind.unwrap_or(0);
     let incoming = if behind > 0 {
         let range = format!("{head}..{upstream_head}");
@@ -92,6 +85,7 @@ pub fn abort(git: &Path, repo: &Path, expected_head: &str, expected_merge: &str,
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use super::*;
     use crate::git::find_git;
     fn exec(git: &Path, repo: &Path, args: &[&str]) { run(git, repo, args).unwrap(); }

@@ -103,6 +103,29 @@ beforeEach(() => {
   vi.mocked(native.action).mockResolvedValue("Updated.");
 });
 describe("GitOrbit", () => {
+  it("reloads branch details after creation without losing the commit draft or using the old upstream", async () => {
+    const user = userEvent.setup();
+    const staged = repo("api", {changed: 1, staged: 1, files: [{path: "src/server.ts", originalPath: null, status: "M "}]});
+    vi.mocked(native.changes).mockResolvedValue(staged);
+    render(<App />);
+    await user.click(await screen.findByRole("button", {name: "api"}));
+    await screen.findByRole("checkbox", {name: "Select staged src/server.ts"});
+    await user.type(screen.getByLabelText("Commit message"), "Keep my draft");
+    expect(screen.getByRole("button", {name: "Commit and Push…"})).toBeEnabled();
+    await user.click(screen.getByRole("button", {name: "Create branch"}));
+    const form = screen.getByRole("dialog", {name: "Create branch"});
+    await user.type(within(form).getByLabelText("Branch name"), "feature/new");
+    let finishReload!: (value: Repository) => void;
+    vi.mocked(native.changes).mockImplementation(() => new Promise(resolve => { finishReload = resolve; }));
+    await user.click(within(form).getByRole("button", {name: "Create branch"}));
+    await waitFor(() => expect(native.action).toHaveBeenCalledWith("a", staged.path, "create-branch", [], "feature/new"));
+    await waitFor(() => expect(native.changes).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("button", {name: "Commit and Push…"})).toBeDisabled();
+    await act(async () => finishReload({...staged, branch: "feature/new", upstream: null}));
+    await waitFor(() => expect(screen.getByRole("button", {name: "Commit"})).toBeEnabled());
+    expect(screen.getByRole("button", {name: "Commit and Push…"})).toBeDisabled();
+    expect(screen.getByLabelText("Commit message")).toHaveValue("Keep my draft");
+  });
   it("monitors inactive tabs and opens live file details", async () => {
     const user = userEvent.setup();
     render(<App />);
