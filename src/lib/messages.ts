@@ -75,7 +75,7 @@ export const messages: Record<string, {fa: string; ar: string; zh: string}> = {
     "zh": "请选择所选提交中的文件。"
   },
   "Create branch": {fa: "ساخت برنچ", ar: "إنشاء فرع", zh: "创建分支"},
-  "Cancel": {fa: "انصراف", ar: "إلغاء", zh: "取消"},
+  "A Git operation is already in progress. Finish or abort it before creating a branch.": {fa: "یک عملیات گیت هنوز تمام نشده است. پیش از ساخت برنچ، آن را تکمیل یا لغو کنید.", ar: "هناك عملية Git لم تكتمل بعد. أكملها أو ألغها قبل إنشاء فرع.", zh: "Git 操作尚未完成。创建分支前，请完成或中止该操作。"},
   "A branch with this name already exists.": {fa: "برنچی با این نام از قبل وجود دارد.", ar: "يوجد فرع بهذا الاسم بالفعل.", zh: "已存在同名分支。"},
   "Branch name": {fa: "نام برنچ", ar: "اسم الفرع", zh: "分支名称"},
   "Create a branch from the current HEAD and switch to it. Local changes are kept.": {fa: "برنچ از موقعیت فعلی ساخته می‌شود و به آن منتقل می‌شوید. تغییرات محلی حفظ می‌شوند.", ar: "إنشاء فرع من HEAD الحالي والانتقال إليه. تُحفظ التغييرات المحلية.", zh: "从当前 HEAD 创建分支并切换到该分支。保留本地更改。"},

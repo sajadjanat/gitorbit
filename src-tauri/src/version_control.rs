@@ -1,6 +1,6 @@
 use crate::git::{capture, git_command, parse_status, Repository};
 use serde::Serialize;
-use std::{collections::HashSet, fs, io::Read, path::Path, time::Duration};
+use std::{collections::HashSet, fs, io::Read, path::{Path, PathBuf}, time::Duration};
 
 const MAX_OUTGOING_COMMITS: usize = 200;
 
@@ -8,6 +8,22 @@ pub(crate) fn run(git: &Path, repo: &Path, args: &[&str]) -> Result<Vec<u8>, Str
     let mut command = git_command(git, repo);
     command.args(args);
     capture(command, Duration::from_secs(45))
+}
+pub(crate) fn git_path(git: &Path, repo: &Path, name: &str) -> Result<PathBuf, String> {
+    let bytes = run(git, repo, &["rev-parse", "--git-path", name])?;
+    let path = PathBuf::from(String::from_utf8_lossy(&bytes).trim());
+    Ok(if path.is_absolute() { path } else { repo.join(path) })
+}
+pub(crate) fn pending_operation(git: &Path, repo: &Path) -> Result<Option<&'static str>, String> {
+    for (marker, operation) in [
+        ("MERGE_HEAD", "merge"), ("rebase-merge", "rebase"), ("rebase-apply", "rebase"),
+        ("CHERRY_PICK_HEAD", "other"), ("REVERT_HEAD", "other"), ("sequencer", "other"),
+    ] {
+        if git_path(git, repo, marker)?.try_exists().map_err(|e| e.to_string())? {
+            return Ok(Some(operation));
+        }
+    }
+    Ok(None)
 }
 pub fn changes(git: &Path, repo: &Path) -> Result<Repository, String> {
     let bytes = run(
@@ -484,6 +500,9 @@ pub fn action(
     let state = changes(git, repo)?;
     match action {
         "create-branch" => {
+            if pending_operation(git, repo)?.is_some() {
+                return Err("A Git operation is already in progress. Finish or abort it before creating a branch.".into());
+            }
             let name = message.filter(|name| !name.is_empty()).ok_or("Enter a branch name.")?;
             if name.len() > 255 || name.starts_with('-') || name == "HEAD" {
                 return Err("Enter a valid branch name.".into());
@@ -601,6 +620,54 @@ mod tests {
         exec(git, repo, &["config", "user.name", "Demo"]);
         exec(git, repo, &["config", "user.email", "demo@example.com"]);
         exec(git, repo, &["config", "commit.gpgsign", "false"]);
+    }
+    #[test]
+    fn create_branch_refuses_pending_operations_even_after_conflicts_are_staged() {
+        let (git, _) = find_git().unwrap();
+        for case in ["merge", "merge-worktree", "cherry-pick", "revert", "rebase"] {
+            let root = tempfile::tempdir().unwrap();
+            let repo = root.path();
+            setup(repo, &git);
+            fs::write(repo.join("file.txt"), "base\n").unwrap();
+            exec(&git, repo, &["add", "file.txt"]);
+            exec(&git, repo, &["commit", "-qm", "Base"]);
+            exec(&git, repo, &["checkout", "-qb", "side"]);
+            fs::write(repo.join("file.txt"), "side\n").unwrap();
+            exec(&git, repo, &["commit", "-qam", "Side"]);
+            exec(&git, repo, &["checkout", "-q", "main"]);
+            fs::write(repo.join("file.txt"), "main\n").unwrap();
+            exec(&git, repo, &["commit", "-qam", "Main"]);
+            let worktree = root.path().join("linked");
+            let repo = if case == "merge-worktree" {
+                exec(&git, repo, &["worktree", "add", "-b", "linked", worktree.to_str().unwrap()]);
+                assert!(worktree.join(".git").is_file());
+                worktree.as_path()
+            } else { repo };
+            let operation = if case == "merge-worktree" { "merge" } else { case };
+            let args = if operation == "revert" { vec![operation, "--no-edit", "side"] } else { vec![operation, "side"] };
+            assert!(run(&git, repo, &args).is_err(), "{operation} should conflict");
+            assert!(changes(&git, repo).unwrap().conflicts > 0);
+            assert!(action(&git, repo, "create-branch", &[], Some("blocked")).is_err());
+            fs::write(repo.join("file.txt"), "resolved\n").unwrap();
+            exec(&git, repo, &["add", "file.txt"]);
+            assert_eq!(changes(&git, repo).unwrap().conflicts, 0);
+            let head = run(&git, repo, &["rev-parse", "HEAD"]).unwrap();
+            let index = run(&git, repo, &["write-tree"]).unwrap();
+            let marker = match operation { "merge" => "MERGE_HEAD", "cherry-pick" => "CHERRY_PICK_HEAD", "revert" => "REVERT_HEAD", _ => "rebase-merge" };
+            let marker_path = run(&git, repo, &["rev-parse", "--git-path", marker]).unwrap();
+            let marker_path = repo.join(String::from_utf8_lossy(&marker_path).trim());
+            assert!(marker_path.exists());
+            assert!(action(&git, repo, "create-branch", &[], Some("blocked")).is_err(), "must keep pending {operation}");
+            assert!(marker_path.exists(), "must preserve {operation} metadata");
+            assert_eq!(run(&git, repo, &["rev-parse", "HEAD"]).unwrap(), head);
+            assert_eq!(run(&git, repo, &["write-tree"]).unwrap(), index);
+            assert!(run(&git, repo, &["show-ref", "--verify", "refs/heads/blocked"]).is_err());
+            if operation == "merge" {
+                action(&git, repo, "commit", &[], Some("Resolve merge")).unwrap();
+                let parents = run(&git, repo, &["rev-list", "--parents", "-n", "1", "HEAD"]).unwrap();
+                assert_eq!(String::from_utf8_lossy(&parents).split_whitespace().count(), 3);
+            }
+        }
     }
     #[test]
     fn create_branch_preserves_head_and_local_changes_and_rejects_invalid_names() {

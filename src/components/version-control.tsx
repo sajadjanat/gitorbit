@@ -23,7 +23,7 @@ export function fileGroups(files: ChangedFile[]) {
     unversioned: files.filter((f) => f.status === "??"),
   };
 }
-export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyChange }: { workspaceId: string; path: string; onChanged: () => void; blocked: boolean; onBusyChange?: (busy: boolean) => void }) {
+export function VersionControl({ workspaceId, path, revision, onChanged, blocked, onBusyChange }: { workspaceId: string; path: string; revision?: string; onChanged: () => void; blocked: boolean; onBusyChange?: (busy: boolean) => void }) {
   const { direction } = useLanguage();
   const [state, setState] = useState<Repository | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,7 +50,7 @@ export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyCh
       setChecked((old) => new Set([...old].filter((key) => valid.has(key))));
     }, (e) => { if (!cancelled) setLoadError(String(e)); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [workspaceId, path, reload]);
+  }, [workspaceId, path, revision, reload]);
   useEffect(() => {
     let cancelled = false;
     setDiff(null); setDiffError("");
@@ -59,7 +59,7 @@ export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyCh
       (e) => { if (!cancelled) setDiffError(String(e)); },
     );
     return () => { cancelled = true; };
-  }, [workspaceId, path, preview, reload]);
+  }, [workspaceId, path, revision, preview, reload]);
   const groups = fileGroups(state?.files ?? []);
   const locked = busy || blocked || loading || Boolean(loadError);
   async function action(kind: "stage" | "unstage" | "commit", pushAfterCommit = false) {
