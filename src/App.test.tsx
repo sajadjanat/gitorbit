@@ -29,6 +29,8 @@ vi.mock("./lib/native", async (importOriginal) => ({
     changes: vi.fn(),
     diff: vi.fn(),
     action: vi.fn(),
+    tools: vi.fn(),
+    toolAction: vi.fn(),
   },
 }));
 const roots: Workspace[] = [
@@ -101,6 +103,8 @@ beforeEach(() => {
   vi.mocked(native.changes).mockResolvedValue(snapshot("a").repositories[0]);
   vi.mocked(native.diff).mockResolvedValue({ text: "@@ -1 +1 @@\n-old\n+new", truncated: false });
   vi.mocked(native.action).mockResolvedValue("Updated.");
+  vi.mocked(native.toolAction).mockResolvedValue("Git operation completed.");
+  vi.mocked(native.tools).mockResolvedValue({reviewToken: "reviewed", head: "abcdef123456", branch: "main", operation: null, changed: 1, conflicts: 0, refs: [], stashes: [], reflog: [], remotes: ["origin"]});
 });
 describe("GitOrbit", () => {
   it("reloads branch details after creation without losing the commit draft or using the old upstream", async () => {
@@ -112,14 +116,16 @@ describe("GitOrbit", () => {
     await screen.findByRole("checkbox", {name: "Select staged src/server.ts"});
     await user.type(screen.getByLabelText("Commit message"), "Keep my draft");
     expect(screen.getByRole("button", {name: "Commit and Push…"})).toBeEnabled();
-    await user.click(screen.getByRole("button", {name: "Create branch"}));
+    await user.click(screen.getByRole("button", {name: "main"}));
+    await user.click(await screen.findByRole("button", {name: "Create branch"}));
     const form = screen.getByRole("dialog", {name: "Create branch"});
     await user.type(within(form).getByLabelText("Branch name"), "feature/new");
     let finishReload!: (value: Repository) => void;
     vi.mocked(native.changes).mockImplementation(() => new Promise(resolve => { finishReload = resolve; }));
     await user.click(within(form).getByRole("button", {name: "Create branch"}));
-    await waitFor(() => expect(native.action).toHaveBeenCalledWith("a", staged.path, "create-branch", [], "feature/new"));
+    await waitFor(() => expect(native.toolAction).toHaveBeenCalledWith("a", staged.path, expect.objectContaining({action: "create", name: "feature/new", reviewToken: "reviewed"})));
     await waitFor(() => expect(native.changes).toHaveBeenCalledTimes(2));
+    await user.click(within(screen.getByRole("dialog", {name: "Git branches and operations"})).getByRole("button", {name: "Close"}));
     expect(screen.getByRole("button", {name: "Commit and Push…"})).toBeDisabled();
     await act(async () => finishReload({...staged, branch: "feature/new", upstream: null}));
     await waitFor(() => expect(screen.getByRole("button", {name: "Commit"})).toBeEnabled());
