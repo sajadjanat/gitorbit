@@ -74,6 +74,15 @@ export const messages: Record<string, {fa: string; ar: string; zh: string}> = {
     "ar": "اختر ملفًا من الالتزام المحدد.",
     "zh": "请选择所选提交中的文件。"
   },
+  "Create branch": {fa: "ساخت برنچ", ar: "إنشاء فرع", zh: "创建分支"},
+  "Cancel": {fa: "انصراف", ar: "إلغاء", zh: "取消"},
+  "A branch with this name already exists.": {fa: "برنچی با این نام از قبل وجود دارد.", ar: "يوجد فرع بهذا الاسم بالفعل.", zh: "已存在同名分支。"},
+  "Branch name": {fa: "نام برنچ", ar: "اسم الفرع", zh: "分支名称"},
+  "Create a branch from the current HEAD and switch to it. Local changes are kept.": {fa: "برنچ از موقعیت فعلی ساخته می‌شود و به آن منتقل می‌شوید. تغییرات محلی حفظ می‌شوند.", ar: "إنشاء فرع من HEAD الحالي والانتقال إليه. تُحفظ التغييرات المحلية.", zh: "从当前 HEAD 创建分支并切换到该分支。保留本地更改。"},
+  "Enter a branch name.": {fa: "نام برنچ را وارد کنید.", ar: "أدخل اسم الفرع.", zh: "请输入分支名称。"},
+  "Enter a valid branch name.": {fa: "یک نام معتبر برای برنچ وارد کنید.", ar: "أدخل اسم فرع صالحًا.", zh: "请输入有效的分支名称。"},
+  "Create an initial commit before creating a branch.": {fa: "پیش از ساخت برنچ، اولین کامیت را ایجاد کنید.", ar: "أنشئ أول التزام قبل إنشاء فرع.", zh: "创建分支前请先创建初始提交。"},
+  "Resolve conflicts before creating a branch.": {fa: "پیش از ساخت برنچ، تداخل‌ها را برطرف کنید.", ar: "حل التعارضات قبل إنشاء فرع.", zh: "创建分支前请先解决冲突。"},
   "Language": {
     "fa": "زبان",
     "ar": "اللغة",

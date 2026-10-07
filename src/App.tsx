@@ -70,6 +70,7 @@ import { useMonitor } from "@/lib/use-monitor";
 import { RepositoryHistory } from "@/components/repository-history";
 import { PushPreview } from "@/components/push-preview";
 import { VersionControl } from "@/components/version-control";
+import { CreateBranch } from "@/components/create-branch";
 import { AppearanceButton } from "@/components/appearance";
 import { LanguagePicker } from "@/components/language-picker";
 import { AppUpdates } from "@/components/app-updates";
@@ -875,6 +876,7 @@ export default function App() {
             {selected && detail && <>
               <div className="flex flex-wrap items-center gap-3 px-5 pb-3 shrink-0 text-xs">
                 <Status repo={selected} /><span className="text-muted-foreground flex items-center gap-1"><GitBranch className="size-3" />{selected.detached ? t("Detached HEAD") : selected.branch}</span>
+                <CreateBranch key={`${detail.workspaceId}:${selected.path}`} workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy || Boolean(selected.error)} onBusyChange={setRepositoryBusy} onCreated={() => monitor.refresh(detail.workspaceId)} />
                 <span className="text-muted-foreground hidden sm:inline">{selected.upstream ?? t("No upstream")}</span>
                 <Button variant="outline" size="sm" className="ms-auto" disabled={pulling} onClick={() => void pullRepositories(detail.workspaceId, [selected], selected.name)}><ArrowDown className="size-3.5" />{t("Pull repository")}</Button>
                 <Button variant="ghost" size="sm" onClick={() => void openRepository(detail.workspaceId, selected.path)}><FolderOpen className="size-3.5" />{t("Open folder")}</Button>

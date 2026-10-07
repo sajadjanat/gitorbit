@@ -483,6 +483,24 @@ pub fn action(
 ) -> Result<String, String> {
     let state = changes(git, repo)?;
     match action {
+        "create-branch" => {
+            let name = message.filter(|name| !name.is_empty()).ok_or("Enter a branch name.")?;
+            if name.len() > 255 || name.starts_with('-') || name == "HEAD" {
+                return Err("Enter a valid branch name.".into());
+            }
+            run(git, repo, &["check-ref-format", &format!("refs/heads/{name}")])
+                .map_err(|_| "Enter a valid branch name.".to_owned())?;
+            if run(git, repo, &["show-ref", "--verify", "--quiet", &format!("refs/heads/{name}")]).is_ok() {
+                return Err("A branch with this name already exists.".into());
+            }
+            run(git, repo, &["rev-parse", "--verify", "HEAD"])
+                .map_err(|_| "Create an initial commit before creating a branch.".to_owned())?;
+            if state.conflicts > 0 {
+                return Err("Resolve conflicts before creating a branch.".into());
+            }
+            run(git, repo, &["checkout", "--no-track", "-b", name])?;
+            Ok(format!("Created branch {name}."))
+        }
         "stage" | "unstage" => {
             if paths.is_empty() || paths.len() > 10000 {
                 return Err("Select files to stage or unstage.".into());
@@ -583,6 +601,38 @@ mod tests {
         exec(git, repo, &["config", "user.name", "Demo"]);
         exec(git, repo, &["config", "user.email", "demo@example.com"]);
         exec(git, repo, &["config", "commit.gpgsign", "false"]);
+    }
+    #[test]
+    fn create_branch_preserves_head_and_local_changes_and_rejects_invalid_names() {
+        let root = tempfile::tempdir().unwrap();
+        let repo = root.path();
+        let (git, _) = find_git().unwrap();
+        setup(repo, &git);
+        assert!(action(&git, repo, "create-branch", &[], Some("feature/new")).is_err());
+        // Seed HEAD in the temporary fixture without invoking the application's commit action.
+        let tree = run(&git, repo, &["hash-object", "-w", "-t", "tree", "--stdin"]).unwrap();
+        let tree = String::from_utf8_lossy(&tree).trim().to_owned();
+        let commit = run(&git, repo, &["commit-tree", &tree, "-m", "Fixture"]).unwrap();
+        let commit = String::from_utf8_lossy(&commit).trim().to_owned();
+        exec(&git, repo, &["update-ref", "refs/heads/main", &commit]);
+        fs::write(repo.join("local.txt"), "local changes").unwrap();
+        exec(&git, repo, &["add", "local.txt"]);
+        fs::write(repo.join("local.txt"), "unstaged changes").unwrap();
+        for name in ["", "--help", "HEAD", "bad name", "bad..name", "@{-1}"] {
+            assert!(action(&git, repo, "create-branch", &[], Some(name)).is_err());
+        }
+        action(&git, repo, "create-branch", &[], Some("feature/new")).unwrap();
+        let state = changes(&git, repo).unwrap();
+        assert_eq!(state.branch, "feature/new");
+        assert_eq!(state.staged, 1);
+        assert_eq!(state.unstaged, 1);
+        assert_eq!(run(&git, repo, &["rev-parse", "HEAD"]).unwrap(), format!("{commit}\n").as_bytes());
+        assert_eq!(fs::read_to_string(repo.join("local.txt")).unwrap(), "unstaged changes");
+        assert!(action(&git, repo, "create-branch", &[], Some("feature/new")).is_err());
+        assert_eq!(changes(&git, repo).unwrap().branch, "feature/new");
+        exec(&git, repo, &["checkout", "--detach"]);
+        action(&git, repo, "create-branch", &[], Some("rescue")).unwrap();
+        assert_eq!(changes(&git, repo).unwrap().branch, "rescue");
     }
     fn push_fixture() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
         let root = tempfile::tempdir().unwrap();

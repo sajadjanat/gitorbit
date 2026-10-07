@@ -143,7 +143,7 @@ export const native = {
   signInSetup: () => invoke<void>("open_git_sign_in_setup"),
   changes: (workspaceId: string, path: string) => invoke<Repository>("repository_changes", { workspaceId, path }),
   diff: (workspaceId: string, path: string, file: string, staged: boolean) => invoke<{text: string; truncated: boolean}>("repository_diff", { workspaceId, path, file, staged }),
-  action: (workspaceId: string, path: string, action: "stage" | "unstage" | "commit" | "pull", paths: string[] = [], message: string | null = null) => invoke<string>("repository_action", { workspaceId, path, action, paths, message }),
+  action: (workspaceId: string, path: string, action: "stage" | "unstage" | "commit" | "pull" | "create-branch", paths: string[] = [], message: string | null = null) => invoke<string>("repository_action", { workspaceId, path, action, paths, message }),
 };
 
 export function attention(r: Repository) {
