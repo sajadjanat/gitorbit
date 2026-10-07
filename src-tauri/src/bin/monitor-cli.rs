@@ -9,6 +9,8 @@ mod version_control;
 mod auth;
 #[path = "../sync.rs"]
 mod sync;
+#[path = "../git_tools.rs"]
+mod git_tools;
 use git::{find_git, scan, Workspace};
 fn main() {
     let args: Vec<_> = std::env::args().collect();

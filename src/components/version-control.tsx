@@ -8,6 +8,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SideBySideDiff } from "@/components/side-by-side-diff";
 import { native, type ChangedFile, type Repository } from "@/lib/native";
+import { FileGitAction } from "@/components/rollback-files";
+import { BranchManager } from "@/components/git-tools";
+import { ConflictEditor } from "@/components/conflict-editor";
 
 type Group = "staged" | "changes" | "unversioned";
 const keepMessageKey = "workspace-monitor-keep-commit-message";
@@ -94,13 +97,23 @@ export function VersionControl({ workspaceId, path, onChanged, blocked, onBusyCh
   const hasUnstage = [...checked].some((key) => key.startsWith("staged:"));
   const commitDisabled = locked || !groups.staged.length || !message.trim() || Boolean(state?.conflicts);
   const commitAndPushDisabled = commitDisabled || !state?.upstream || (state?.behind ?? 0) > 0;
+  const selectedFiles = [...new Set([...checked].map((key) => key.slice(key.indexOf(":") + 1)))];
+  const rollbackPaths = selectedFiles.filter((p) => state?.files.some((f) => f.path === p && f.status !== "??"));
+  const conflictPaths = selectedFiles.filter((p) => state?.files.some((f) => f.path === p && ["DD", "AU", "UD", "UA", "DU", "AA", "UU"].includes(f.status)));
+  function filesChanged() { setChecked(new Set()); setPreview(null); setReload((n) => n + 1); onChanged(); }
   return <div className="flex-1 min-h-0 flex flex-col" data-testid="version-control">
     <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b">
       <Button variant="outline" size="sm" disabled={locked || !hasStage} onClick={() => void action("stage")}><Plus className="size-3.5" />{t("Stage selected")}</Button>
       <Button variant="outline" size="sm" disabled={locked || !hasUnstage} onClick={() => void action("unstage")}><Minus className="size-3.5" />{t("Unstage selected")}</Button>
+      <FileGitAction workspaceId={workspaceId} path={path} paths={rollbackPaths} action="rollback" blocked={locked} onBusyChange={onBusyChange} onChanged={filesChanged} />
+      <BranchManager workspaceId={workspaceId} path={path} branch={t("Git operations")} blocked={locked} onBusyChange={onBusyChange || (() => {})} onChanged={filesChanged} />
       <Button variant="ghost" size="sm" className="ms-auto" aria-label={t("Refresh files")} disabled={busy || blocked} onClick={() => { setReload((n) => n + 1); onChanged(); }}>
         {loading ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}{t("Refresh")}</Button>
     </div>
+    {!!conflictPaths.length && <div className="px-4 py-2 border-b flex flex-wrap gap-2 bg-amber-500/10">
+      <ConflictEditor workspaceId={workspaceId} path={path} file={conflictPaths.length === 1 ? conflictPaths[0] : ""} blocked={locked} onBusyChange={onBusyChange} onChanged={filesChanged} />
+      {(["resolve-ours", "resolve-theirs", "resolve-mark"] as const).map((kind) => <FileGitAction key={kind} workspaceId={workspaceId} path={path} paths={conflictPaths} action={kind} blocked={locked} onBusyChange={onBusyChange} onChanged={filesChanged} />)}
+    </div>}
     {(error || loadError || notice) && <Alert variant={error || loadError ? "destructive" : "default"} className="mx-4 my-2 w-auto py-2"><AlertDescription>{t(error || loadError || notice)}</AlertDescription></Alert>}
     <div className="flex flex-1 min-h-0 flex-col md:flex-row">
       <div className="md:w-[360px] md:shrink-0 border-b md:border-b-0 md:border-e flex flex-col min-h-0 max-h-[45%] md:max-h-none">

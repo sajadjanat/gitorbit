@@ -112,7 +112,7 @@ describe("GitOrbit", () => {
     await user.click(screen.getByRole("button", { name: "api" }));
     expect(await screen.findByText("server.ts")).toBeInTheDocument();
     const tabs = within(screen.getByRole("dialog")).getAllByRole("tab");
-    expect(tabs.map(tab => tab.textContent)).toEqual(["Version Control2", "Push0", "Git graph"]);
+    expect(tabs.map(tab => tab.textContent)).toEqual(["Version Control2", "Push0", "Git graph", "Branches"]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     expect(native.history).not.toHaveBeenCalled();
     await user.click(tabs[2]);

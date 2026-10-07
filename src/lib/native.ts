@@ -109,7 +109,18 @@ export interface SyncState {
   operation: string | null; mergeHead: string | null; blockedReason: string | null;
   incoming: OutgoingCommit[]; note: string | null;
 }
+export interface GitToolRef { name: string; hash: string; kind: "local" | "remote" | "tag" | "recovery"; upstream: string; current: boolean }
+export interface GitToolEntry { id: string; hash: string; subject: string }
+export interface GitToolsState { reviewToken: string; head: string; branch: string; operation: string | null; changed: number; conflicts: number; refs: GitToolRef[]; stashes: GitToolEntry[]; reflog: GitToolEntry[]; remotes: string[] }
+export type GitToolAction = "create" | "restore-branch" | "checkout" | "rename" | "delete" | "merge" | "rebase" | "cherry-pick" | "revert" | "reset" | "undo-commit" | "upstream" | "unset-upstream" | "stash" | "stash-apply" | "stash-pop" | "stash-drop" | "rollback" | "resolve-ours" | "resolve-theirs" | "resolve-mark" | "resolve-edit" | "continue" | "abort" | "skip" | "publish" | "delete-remote" | "create-tag" | "delete-tag" | "restore-stash";
+export interface GitToolRequest { action: GitToolAction; target: string; name: string; paths: string[]; mode: string; force: boolean; checkout: boolean; reviewToken: string }
+export interface GitComparison { target: string; ahead: number; behind: number; diff: string; truncated: boolean }
+export interface GitConflict { base: string; ours: string; theirs: string; working: string; reviewToken: string }
 export const native = {
+  tools: (workspaceId: string, path: string) => invoke<GitToolsState>("repository_tools", { workspaceId, path }),
+  toolAction: (workspaceId: string, path: string, request: GitToolRequest) => invoke<string>("repository_tool_action", { workspaceId, path, request }),
+  compare: (workspaceId: string, path: string, target: string) => invoke<GitComparison>("repository_compare", { workspaceId, path, target }),
+  conflict: (workspaceId: string, path: string, file: string) => invoke<GitConflict>("repository_conflict", { workspaceId, path, file }),
   sync: (workspaceId: string, path: string, action: "inspect" | "fetch" | "integrate" | "abort", expectedHead = "", expectedUpstreamHead = "", expectedToken = "") => invoke<SyncState>("repository_sync", {workspaceId, path, action, expectedHead, expectedUpstreamHead, expectedToken}),
   available: isTauri,
   environment: () => invoke<Environment>("check_environment"),

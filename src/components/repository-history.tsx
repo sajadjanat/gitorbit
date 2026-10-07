@@ -4,13 +4,14 @@ import { GitBranch, GitMerge, LoaderCircle, RefreshCw } from "lucide-react";
 import { native, type GitHistory } from "@/lib/native";
 import { edgePath, LANE_WIDTH, layoutGraph, ROW_HEIGHT } from "@/lib/git-graph";
 import { Button } from "@/components/ui/button";
+import { BranchManager } from "@/components/git-tools";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const dateFormat = { format: (value: Date) => date(value, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) };
 
-export function RepositoryHistory({ workspaceId, path }: { workspaceId: string; path: string }) {
+export function RepositoryHistory({ workspaceId, path, blocked = false, onBusyChange = () => {}, onChanged = () => {} }: { workspaceId: string; path: string; blocked?: boolean; onBusyChange?: (busy: boolean) => void; onChanged?: () => void }) {
   const [limit, setLimit] = useState(200);
   const [scope, setScope] = useState<"all" | "head">("all");
   const [refresh, setRefresh] = useState(0);
@@ -82,6 +83,7 @@ export function RepositoryHistory({ workspaceId, path }: { workspaceId: string; 
           {data.hasMore && <div className="py-3 text-center border-t"><Button variant="outline" size="sm" disabled={loading || limit >= 5000} onClick={() => setLimit((n) => Math.min(n + 200, 5000))}>{limit >= 5000 ? t("Showing the latest 5,000 commits") : loading ? t("Loading…") : t("Load 200 more commits")}</Button></div>}
         </div>
         {commit && <div className="shrink-0 border-t px-4 py-3 bg-muted/20 space-y-1 text-xs max-h-32 overflow-auto"><p className="font-medium break-words">{commit.subject}</p><p dir="ltr" className="font-mono break-all text-muted-foreground">{commit.hash}</p><p className="text-muted-foreground">{commit.author} · {dateFormat.format(new Date(commit.timestamp * 1000))}</p><p dir="ltr" className="font-mono text-[10px] break-all text-muted-foreground">{commit.parents.length ? t("Parents: {parents}", {parents: commit.parents.map(p => p.slice(0, 7)).join(" · ")}) : t("Root commit")}</p></div>}
+        {commit && <div className="px-4 py-2 border-t"><BranchManager key={commit.hash} workspaceId={workspaceId} path={path} revision={commit.hash} blocked={blocked} onBusyChange={onBusyChange} onChanged={() => { setRefresh((n) => n + 1); onChanged(); }} /></div>}
         <div className="shrink-0 px-4 py-2 border-t text-[11px] text-muted-foreground">{t("Newest first · Lines follow commit parents · Branches and tags reflect local refs")}</div>
       </>}
     </div>

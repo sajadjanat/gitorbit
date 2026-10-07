@@ -1,5 +1,7 @@
+import { gitToolsMessages } from "./git-tools-messages";
 // English source keys provide readable fallback text.
 export const messages: Record<string, {fa: string; ar: string; zh: string}> = {
+  ...gitToolsMessages,
   "Your Git credentials are missing or expired. Sign in, then retry fetching.": {fa:"اعتبارنامه گیت موجود نیست یا منقضی شده. وارد شوید و دوباره فچ کنید.",ar:"بيانات اعتماد Git مفقودة أو منتهية. سجّل الدخول ثم أعد الجلب.",zh:"Git 凭据缺失或已过期。请登录后重试获取。"},
   "Cancel": {fa:"انصراف", ar:"إلغاء", zh:"取消"},
   "Sign-in completed. Retry fetching to check incoming commits.": {fa:"ورود انجام شد. برای بررسی کامیت‌های ورودی، فچ را دوباره بزنید.",ar:"اكتمل الدخول. أعد الجلب للتحقق من الالتزامات الواردة.",zh:"登录完成。请重试获取以检查传入提交。"},
@@ -75,7 +77,6 @@ export const messages: Record<string, {fa: string; ar: string; zh: string}> = {
     "zh": "请选择所选提交中的文件。"
   },
   "Create branch": {fa: "ساخت برنچ", ar: "إنشاء فرع", zh: "创建分支"},
-  "Cancel": {fa: "انصراف", ar: "إلغاء", zh: "取消"},
   "A branch with this name already exists.": {fa: "برنچی با این نام از قبل وجود دارد.", ar: "يوجد فرع بهذا الاسم بالفعل.", zh: "已存在同名分支。"},
   "Branch name": {fa: "نام برنچ", ar: "اسم الفرع", zh: "分支名称"},
   "Create a branch from the current HEAD and switch to it. Local changes are kept.": {fa: "برنچ از موقعیت فعلی ساخته می‌شود و به آن منتقل می‌شوید. تغییرات محلی حفظ می‌شوند.", ar: "إنشاء فرع من HEAD الحالي والانتقال إليه. تُحفظ التغييرات المحلية.", zh: "从当前 HEAD 创建分支并切换到该分支。保留本地更改。"},

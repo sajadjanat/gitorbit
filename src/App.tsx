@@ -70,7 +70,7 @@ import { useMonitor } from "@/lib/use-monitor";
 import { RepositoryHistory } from "@/components/repository-history";
 import { PushPreview } from "@/components/push-preview";
 import { VersionControl } from "@/components/version-control";
-import { CreateBranch } from "@/components/create-branch";
+import { BranchManager, GitTools } from "@/components/git-tools";
 import { AppearanceButton } from "@/components/appearance";
 import { LanguagePicker } from "@/components/language-picker";
 import { AppUpdates } from "@/components/app-updates";
@@ -875,17 +875,18 @@ export default function App() {
             </SheetHeader>
             {selected && detail && <>
               <div className="flex flex-wrap items-center gap-3 px-5 pb-3 shrink-0 text-xs">
-                <Status repo={selected} /><span className="text-muted-foreground flex items-center gap-1"><GitBranch className="size-3" />{selected.detached ? t("Detached HEAD") : selected.branch}</span>
-                <CreateBranch key={`${detail.workspaceId}:${selected.path}`} workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy || Boolean(selected.error)} onBusyChange={setRepositoryBusy} onCreated={() => monitor.refresh(detail.workspaceId)} />
+                <Status repo={selected} />
+                <BranchManager key={`${detail.workspaceId}:${selected.path}`} workspaceId={detail.workspaceId} path={selected.path} branch={selected.detached ? t("Detached HEAD") : selected.branch} blocked={pulling || updating || repositoryBusy || Boolean(selected.error)} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} />
                 <span className="text-muted-foreground hidden sm:inline">{selected.upstream ?? t("No upstream")}</span>
                 <Button variant="outline" size="sm" className="ms-auto" disabled={pulling} onClick={() => void pullRepositories(detail.workspaceId, [selected], selected.name)}><ArrowDown className="size-3.5" />{t("Pull repository")}</Button>
                 <Button variant="ghost" size="sm" onClick={() => void openRepository(detail.workspaceId, selected.path)}><FolderOpen className="size-3.5" />{t("Open folder")}</Button>
               </div>
               <Tabs key={selected.path} value={repositoryTab} onValueChange={setRepositoryTab} className="flex-1 min-h-0 gap-0">
-                <TabsList className="mx-5 mb-2 shrink-0 w-fit"><TabsTrigger value="changes">{t("Version Control")}<span className="ms-1 text-muted-foreground">{number(selected.changed)}</span></TabsTrigger><TabsTrigger value="push">{t("Push")}<span className="ms-1 text-muted-foreground">{selected.ahead === null ? "?" : number(selected.ahead)}</span></TabsTrigger><TabsTrigger value="graph">{t("Git graph")}</TabsTrigger></TabsList>
+                <TabsList className="mx-5 mb-2 shrink-0 max-w-[calc(100%-2.5rem)] w-fit overflow-x-auto"><TabsTrigger value="changes">{t("Version Control")}<span className="ms-1 text-muted-foreground">{number(selected.changed)}</span></TabsTrigger><TabsTrigger value="push">{t("Push")}<span className="ms-1 text-muted-foreground">{selected.ahead === null ? "?" : number(selected.ahead)}</span></TabsTrigger><TabsTrigger value="graph">{t("Git graph")}</TabsTrigger><TabsTrigger value="tools">{t("Branches")}</TabsTrigger></TabsList>
                 <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
                 <TabsContent value="push" className="m-0 flex flex-1 min-h-0 border-t"><PushPreview onReviewChanges={() => setRepositoryTab("changes")} workspaceId={detail.workspaceId} path={selected.path} upstream={selected.upstream} behind={selected.behind} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onPushed={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
-                <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory workspaceId={detail.workspaceId} path={selected.path} /></TabsContent>
+                <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
+                <TabsContent value="tools" className="m-0 flex flex-1 min-h-0 border-t"><GitTools workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
               </Tabs>
             </>}
           </SheetContent>
