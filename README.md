@@ -7,7 +7,7 @@
   <p>A compact desktop Git monitor built with Tauri, React, and shadcn/ui.</p>
   <p>
     <a href="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml"><img src="https://github.com/sajadjanat/gitorbit/actions/workflows/build.yml/badge.svg" alt="Desktop builds" /></a>
-    <a href="https://github.com/sajadjanat/gitorbit/releases"><img src="https://img.shields.io/badge/version-0.5.4-blue" alt="Version 0.5.4" /></a>
+    <a href="https://github.com/sajadjanat/gitorbit/releases"><img src="https://img.shields.io/badge/version-0.5.5-blue" alt="Version 0.5.5" /></a>
     <img src="https://img.shields.io/badge/Tauri-2-24c8db?logo=tauri&logoColor=white" alt="Tauri 2" />
     <img src="https://img.shields.io/badge/UI-shadcn%2Fui-18181b?logo=shadcnui&logoColor=white" alt="shadcn/ui" />
   </p>
@@ -38,6 +38,7 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 | **Clear next steps** | Colored labels identify Commit, Push, Pull, Resolve, Sync branch, and upstream problems. |
 | **Git graph** | Click a repository to see real commit history, branch lanes, merges, HEAD, branches, and tags. |
 | **Version Control** | Inspect staged, unstaged, and unversioned files; review diffs, stage a selection, unstage, and commit. |
+| **Create branches** | Create and switch to a local branch from HEAD while keeping local changes. Pending Git operations must be finished or aborted first. |
 | **Push preview** | Review outgoing commits, open any file in a synchronized side-by-side diff, then push explicitly. |
 | **Pull one or all** | Fast-forward one repository or every repository in the active workspace, with individual results. |
 | **Your appearance** | Light, dark, or system mode; Neutral, Violet, Ocean, and Forest palettes; a custom accent color. |
