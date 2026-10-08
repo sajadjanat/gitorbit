@@ -9,7 +9,6 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { SideBySideDiff } from "@/components/side-by-side-diff";
 import { native, type ChangedFile, type Repository } from "@/lib/native";
 import { FileGitAction } from "@/components/rollback-files";
-import { BranchManager } from "@/components/git-tools";
 import { ConflictEditor } from "@/components/conflict-editor";
 
 type Group = "staged" | "changes" | "unversioned";
@@ -106,7 +105,6 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
       <Button variant="outline" size="sm" disabled={locked || !hasStage} onClick={() => void action("stage")}><Plus className="size-3.5" />{t("Stage selected")}</Button>
       <Button variant="outline" size="sm" disabled={locked || !hasUnstage} onClick={() => void action("unstage")}><Minus className="size-3.5" />{t("Unstage selected")}</Button>
       <FileGitAction workspaceId={workspaceId} path={path} paths={rollbackPaths} action="rollback" blocked={locked} onBusyChange={onBusyChange} onChanged={filesChanged} />
-      <BranchManager workspaceId={workspaceId} path={path} branch={t("Git operations")} blocked={locked} onBusyChange={onBusyChange || (() => {})} onChanged={filesChanged} />
       <Button variant="ghost" size="sm" className="ms-auto" aria-label={t("Refresh files")} disabled={busy || blocked} onClick={() => { setReload((n) => n + 1); onChanged(); }}>
         {loading ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}{t("Refresh")}</Button>
     </div>
