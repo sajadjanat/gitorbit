@@ -1,3 +1,4 @@
+import { copyText } from "@/lib/clipboard";
 import { date, plural, t } from "@/lib/i18n";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -15,6 +16,8 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SideBySideDiff } from "@/components/side-by-side-diff";
+import { ContextActions } from "./context-actions";
+import { FileHistory } from "./file-history";
 import { GitAuthentication } from "@/components/git-authentication";
 import { GitSync } from "@/components/git-sync";
 import { isAuthenticationError, isSyncError, redactGitError } from "@/lib/git-errors";
@@ -199,12 +202,14 @@ export function PushPreview({
     }
   }
 
+  const [historyFile,setHistoryFile]=useState<string|null>(null);
   function renderFiles() {
     return <div className="min-h-0 flex-1 overflow-auto py-1">
       {filesLoading && <p className="p-4 text-xs text-muted-foreground">{t("Reading changed files…")}</p>}
       {filesError && <Alert variant="destructive" className="m-3 w-auto"><AlertDescription>{t(filesError)}</AlertDescription></Alert>}
       {!filesLoading && !filesError && selectedCommit && !files.length && <p className="p-4 text-xs text-muted-foreground">{t("No file changes in this commit.")}</p>}
-      {!filesLoading && files.map((file) => <FileItem key={`${file.status}-${file.path}`} file={file} selected={previewFile?.path === file.path} onSelect={() => { if (selectedHash) { setDiff(null); setDiffError(""); setSelectedFile({ commitHash: selectedHash, file }); } }} buttonRef={(node) => { if (node) fileButtons.current.set(file.path, node); else fileButtons.current.delete(file.path); }} />)}
+      {!filesLoading && files.map((file) => {const preview=()=>{if(selectedHash){setDiff(null);setDiffError("");setSelectedFile({commitHash:selectedHash,file});}};return <ContextActions key={`${file.status}-${file.path}`} label={file.path} actions={[{label:t("View diff"),run:preview},{label:t("History"),run:()=>setHistoryFile(file.path)},{label:t("Copy relative path"),run:()=>{void copyText(file.path).catch(e=>setError(String(e)));}}]}><div><FileItem file={file} selected={previewFile?.path === file.path} onSelect={preview} buttonRef={(node)=>{if(node)fileButtons.current.set(file.path,node);else fileButtons.current.delete(file.path);}}/></div></ContextActions>;})}
+      <FileHistory workspaceId={workspaceId} path={path} file={historyFile??""} open={historyFile!==null} hideTrigger onOpenChange={value=>{if(!value)setHistoryFile(null);}}/>
       {!loading && !selectedCommit && !error && upstream && outgoing?.totalCommits === 0 && <p className="p-4 text-xs text-muted-foreground">{t("Create a commit first, then review it here before pushing.")}</p>}
     </div>;
   }

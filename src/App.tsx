@@ -1,3 +1,4 @@
+import { copyText } from "@/lib/clipboard";
 import { date, number, plural, useLanguage, t } from "@/lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -21,6 +22,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RepositorySetup } from "@/components/repository-setup";
+import { RepositoryOverviewRow } from "@/components/repository-overview-row";
+import { type ContextAction } from "@/components/context-actions";
+import { Shelves } from "@/components/shelves";
 import {
   Table,
   TableBody,
@@ -163,7 +168,8 @@ export default function App() {
   const [installing, setInstalling] = useState(false);
   const [checking, setChecking] = useState(false);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("attention");
+  const [filter, setFilter] = useState("all");
+  const [shelfRepository,setShelfRepository]=useState<{workspaceId:string;path:string}|null>(null);
   const [drawerWidth, setDrawerWidth] = useState(readDrawerWidth);
   const drawerWidthRef = useRef(drawerWidth);
   const [detail, setDetail] = useState<{
@@ -237,12 +243,27 @@ export default function App() {
     updateDrawerWidth(nextWidth, true);
   }
 
-  function openRepositoryDetails(workspaceId: string, repo: Repository) {
-    setRepositoryTab("changes");
+  function openRepositoryDetails(workspaceId: string, repo: Repository, tab="changes") {
+    setRepositoryTab(tab);
     setDetail({
       workspaceId,
       path: repo.path,
     });
+  }
+  function repositoryActions(r:Repository):ContextAction[] {
+    const locked=pulling||updating||repositoryBusy;
+    return [
+      {label:t("Version Control"),run:()=>openRepositoryDetails(active,r)},
+      {label:t("Review outgoing commits"),run:()=>openRepositoryDetails(active,r,"push")},
+      {label:t("Branches"),run:()=>openRepositoryDetails(active,r,"tools")},
+      {label:t("Git graph"),run:()=>openRepositoryDetails(active,r,"graph")},
+      {label:t("Shelf"),run:()=>setShelfRepository({workspaceId:active,path:r.path}),disabled:locked},
+      {label:t("Refresh status"),run:()=>monitor.refresh(active),disabled:monitor.busy[active],separator:true},
+      {label:t("Fetch remotes"),run:()=>monitor.refresh(active,true),disabled:locked||monitor.busy[active]},
+      {label:t("Pull repository"),run:()=>void pullRepositories(active,[r],r.name),disabled:locked||Boolean(r.error)||!r.upstream||r.detached},
+      {label:t("Open folder"),run:()=>void openRepository(active,r.path),separator:true},
+      {label:t("Copy repository path"),run:()=>{void copyText(r.path).catch(e=>setError(String(e)));}},
+    ];
   }
 
   useEffect(() => {
@@ -547,7 +568,7 @@ export default function App() {
                         monitor.snapshots[w.id]?.repositories.filter(attention)
                           .length,
                       ) && (
-                        <span className="rounded bg-amber-400/10 px-1.5 py-0.5 text-[10px] text-amber-400 tabular-nums">
+                        <span title={t("Repositories needing attention")} className="rounded bg-amber-400/10 px-1.5 py-0.5 text-[10px] text-amber-400 tabular-nums">
                           {
                             number(monitor.snapshots[w.id].repositories.filter(
                               attention,
@@ -568,7 +589,7 @@ export default function App() {
               </TabsList>
             </div>
             {workspace && (
-              <TabsContent value={active} className="m-0 px-6 pt-6 pb-4">
+              <TabsContent value={active} className="m-0 px-4 sm:px-6 pt-5 pb-4">
                 <div className="flex flex-wrap gap-3 items-start justify-between mb-4">
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight">
@@ -603,7 +624,8 @@ export default function App() {
                       {workspace.path}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <RepositorySetup workspaceId={workspace.id} workspacePath={workspace.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(workspace.id)} />
                     <IconButton
                       label={t("Refresh status")}
                       onClick={() => monitor.refresh(active)}
@@ -628,7 +650,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <div className="relative">
                       <Search className="absolute start-2.5 top-2.5 size-3.5 text-muted-foreground" />
                       <Input
@@ -653,6 +675,7 @@ export default function App() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <span className="text-xs text-muted-foreground">{snapshot&&t("Showing {shown} of {total}",{shown:repositories.length,total:snapshot.repositories.length})}</span>
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                     {t("Auto fetch")}{" "}
                     <span className="text-muted-foreground/60">{t("every 60s")}</span>
@@ -690,21 +713,20 @@ export default function App() {
                     <TableHeader>
                       <TableRow className="bg-muted/20 hover:bg-muted/20">
                         <TableHead className="ps-4">{t("Repository")}</TableHead>
-                        <TableHead>{t("Branch")}</TableHead>
-                        <TableHead className="text-end">{t("Changes")}</TableHead>
+                        <TableHead className="text-end">{t("Changed files")}</TableHead>
                         <TableHead className="text-end">
                           <span className="inline-flex gap-1 items-center">
                             <ArrowUp className="size-3" />
-                            {t("Push")}</span>
+                            {t("To push")}</span>
                         </TableHead>
                         <TableHead className="text-end">
                           <span className="inline-flex gap-1 items-center">
                             <ArrowDown className="size-3" />
-                            {t("Pull")}</span>
+                            {t("To pull")}</span>
                         </TableHead>
                         <TableHead className="ps-6">{t("Next")}</TableHead>
                         <TableHead className="w-12">
-                          <span className="sr-only">{t("Open folder")}</span>
+                          <span className="sr-only">{t("Repository actions")}</span>
                         </TableHead>
                       </TableRow>
                     </TableHeader>
@@ -712,96 +734,18 @@ export default function App() {
                       {!snapshot
                         ? Array.from({ length: 5 }, (_, i) => (
                             <TableRow key={i}>
-                              {Array.from({ length: 7 }, (_, n) => (
+                              {Array.from({ length: 6 }, (_, n) => (
                                 <TableCell key={n}>
                                   <Skeleton className="h-4 w-full" />
                                 </TableCell>
                               ))}
                             </TableRow>
                           ))
-                        : repositories.map((r) => (
-                            <TableRow
-                              key={r.path}
-                              className="group cursor-pointer transition-colors duration-150 hover:bg-muted/40 motion-reduce:transition-none"
-                              onClick={() => openRepositoryDetails(active, r)}
-                            >
-                              <TableCell className="ps-4 py-2">
-                                <button
-                                  type="button"
-                                  className="text-start font-medium hover:underline underline-offset-4 focus-visible:outline-ring rounded-sm"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    openRepositoryDetails(active, r);
-                                  }}
-                                >
-                                  <bdi>{r.name}</bdi>
-                                </button>
-                                {r.error && (
-                                  <span className="sr-only">
-                                    {" "}
-                                    {t("Status unavailable")}</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-xs">
-                                <span className="flex items-center gap-1.5">
-                                  <GitBranch className="size-3 shrink-0" />
-                                  <bdi>{r.detached ? t("Detached HEAD") : r.branch}</bdi>
-                                </span>
-                              </TableCell>
-                              <TableCell
-                                className={`text-end font-mono tabular-nums ${r.changed ? "text-amber-400" : "text-muted-foreground"}`}
-                              >
-                                {r.error ? "?" : r.changed ? number(r.changed) : "—"}
-                              </TableCell>
-                              <TableCell
-                                className={`text-end font-mono tabular-nums ${r.ahead ? "text-blue-400" : "text-muted-foreground"}`}
-                                title={
-                                  r.ahead === null
-                                    ? t("No tracked upstream count")
-                                    : t("Commits ahead of upstream")
-                                }
-                              >
-                                {r.ahead === null ? "?" : r.ahead ? number(r.ahead) : "—"}
-                              </TableCell>
-                              <TableCell
-                                className={`text-end font-mono tabular-nums ${r.behind ? "text-blue-400" : "text-muted-foreground"}`}
-                                title={
-                                  r.behind === null
-                                    ? t("No tracked upstream count")
-                                    : t("Commits behind upstream")
-                                }
-                              >
-                                {r.behind === null ? "?" : r.behind ? number(r.behind) : "—"}
-                              </TableCell>
-                              <TableCell className="ps-6">
-                                <button
-                                  type="button"
-                                  aria-label={t("Details for {name}", {name: r.name})}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    openRepositoryDetails(active, r);
-                                  }}
-                                >
-                                  <Status repo={r} />
-                                </button>
-                              </TableCell>
-                              <TableCell>
-                                <IconButton
-                                  label={t("Open {name} folder", {name: r.name})}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void openRepository(active, r.path)
-                                  }}
-                                >
-                                  <FolderOpen className="size-3.5 text-muted-foreground" />
-                                </IconButton>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                        : repositories.map((r) => <RepositoryOverviewRow key={r.path} repo={r} stale={Boolean(monitor.errors[active])} onOpen={()=>openRepositoryDetails(active,r)} actions={repositoryActions(r)}/>)}
                       {snapshot && !repositories.length && (
                         <TableRow>
                           <TableCell
-                            colSpan={7}
+                            colSpan={6}
                             className="h-40 text-center text-muted-foreground text-sm"
                           >
                             {!snapshot.repositories.length
@@ -826,8 +770,7 @@ export default function App() {
                     <span className="mx-1">·</span>{t("Remotes {time}", {time: timeLabel(snapshot?.fetchedAt)})}
                   </span>
                   <span>
-                    {t("Click a repository for its Git graph, files, or outgoing commits")}<span className="mx-1">·</span>{" "}
-                    {t("? = no upstream count")}</span>
+                    {t("Right-click a project for actions. File counts include new files.")}</span>
                 </div>
               </TabsContent>
             )}
@@ -844,6 +787,7 @@ export default function App() {
           </span>
           <span>{t("Local changes live · Remote counts update on fetch")}</span>
         </footer>
+        {shelfRepository&&<Shelves workspaceId={shelfRepository.workspaceId} path={shelfRepository.path} open hideTrigger onOpenChange={value=>{if(!value)setShelfRepository(null);}} blocked={pulling||updating||repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={()=>monitor.refresh(shelfRepository.workspaceId)}/>}
         <Sheet open={Boolean(detail)} onOpenChange={(open) => { if (!open) setDetail(null); }}>
           <SheetContent
             side={direction === "rtl" ? "right" : "left"}
@@ -883,7 +827,7 @@ export default function App() {
                 <Button variant="ghost" size="sm" onClick={() => void openRepository(detail.workspaceId, selected.path)}><FolderOpen className="size-3.5" />{t("Open folder")}</Button>
               </div>
               <Tabs key={selected.path} value={repositoryTab} onValueChange={setRepositoryTab} className="flex-1 min-h-0 gap-0">
-                <TabsList className="mx-5 mb-2 shrink-0 max-w-[calc(100%-2.5rem)] w-fit h-auto! min-h-8 flex-wrap"><TabsTrigger value="changes">{t("Version Control")}<span className="ms-1 text-muted-foreground">{number(selected.changed)}</span></TabsTrigger><TabsTrigger value="push">{t("Push")}<span className="ms-1 text-muted-foreground">{selected.ahead === null ? "?" : number(selected.ahead)}</span></TabsTrigger><TabsTrigger value="graph">{t("Git graph")}</TabsTrigger><TabsTrigger value="tools">{t("Branches")}</TabsTrigger></TabsList>
+                <TabsList className="mx-5 mb-2 shrink-0 max-w-[calc(100%-2.5rem)] w-fit h-auto! min-h-8 grid grid-cols-2 gap-1 sm:inline-flex sm:gap-0"><TabsTrigger value="changes" className="h-7!">{t("Version Control")}<span className="ms-1 text-muted-foreground">{number(selected.changed)}</span></TabsTrigger><TabsTrigger value="push" className="h-7!">{t("Push")}<span className="ms-1 text-muted-foreground">{selected.ahead === null ? "?" : number(selected.ahead)}</span></TabsTrigger><TabsTrigger value="tools" className="h-7!">{t("Branches")}</TabsTrigger><TabsTrigger value="graph" className="h-7!">{t("Git graph")}</TabsTrigger></TabsList>
                 <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl revision={`${selected.branch}:${selected.detached}:${repositoryRevision}`} workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
                 <TabsContent value="push" className="m-0 flex flex-1 min-h-0 border-t"><PushPreview key={`${selected.branch}:${selected.detached}:${repositoryRevision}`} onReviewChanges={() => setRepositoryTab("changes")} workspaceId={detail.workspaceId} path={selected.path} upstream={selected.upstream} behind={selected.behind} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onPushed={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
                 <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory key={`${selected.branch}:${selected.detached}:${repositoryRevision}`} workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>

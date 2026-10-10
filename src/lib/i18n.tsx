@@ -49,6 +49,8 @@ export const t = (key: string, values?: Record<string, string | number>): string
   // Only recognize app-owned summaries; leave original Git output and user text intact.
   const commit = key.match(/^Created commit ([a-f\d]+)\.$/);
   if (commit) return translate("Created commit {hash}.", current, {hash: commit[1]});
+  const amended = key.match(/^Amended commit ([a-f\d]+)\.$/);
+  if (amended) return translate("Amended commit {hash}.", current, {hash: amended[1]});
   const files = key.match(/^(Staged|Unstaged) (\d+) file\(s\)\.$/);
   if (files) return translate(`${files[1]} {count} file(s).`, current, {count: Number(files[2])});
   return key;

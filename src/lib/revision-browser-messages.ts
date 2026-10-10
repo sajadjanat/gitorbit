@@ -1,0 +1,26 @@
+import type {Language} from "./i18n";
+export const revisionBrowserMessages:Record<string,Record<Exclude<Language,"en">,string>>={
+  "Browse revision":{fa:"مرور نسخه",ar:"تصفح النسخة",zh:"浏览版本"},
+  "Repository at revision":{fa:"ریپو در این نسخه",ar:"المستودع في هذه النسخة",zh:"此版本的仓库"},
+  "Browse committed files without changing your branch or local files.":{fa:"فایل‌های کامیت‌شده را بدون تغییر شاخه یا فایل‌های محلی مرور کنید.",ar:"تصفح الملفات الملتزم بها دون تغيير الفرع أو الملفات المحلية.",zh:"浏览已提交文件，不会切换分支或修改本地文件。"},
+  "Revision folders":{fa:"پوشه‌های نسخه",ar:"مجلدات النسخة",zh:"版本文件夹"},
+  "Repository root":{fa:"ریشه ریپو",ar:"جذر المستودع",zh:"仓库根目录"},
+  "Loading revision…":{fa:"در حال دریافت نسخه…",ar:"جارٍ تحميل النسخة…",zh:"正在加载版本…"},
+  "Loading file…":{fa:"در حال دریافت فایل…",ar:"جارٍ تحميل الملف…",zh:"正在加载文件…"},
+  "Empty directory.":{fa:"پوشه خالی است.",ar:"المجلد فارغ.",zh:"文件夹为空。"},
+  "Choose a file from this revision.":{fa:"یک فایل از این نسخه انتخاب کنید.",ar:"اختر ملفًا من هذه النسخة.",zh:"请选择此版本中的文件。"},
+  "Directory limited to the first 5,000 entries.":{fa:"فقط ۵۰۰۰ مورد نخست این پوشه نمایش داده می‌شوند.",ar:"العرض محدود بأول ٥٠٠٠ عنصر في هذا المجلد.",zh:"此文件夹仅显示前 5,000 项。"},
+  "Binary file: text preview is unavailable.":{fa:"فایل باینری است؛ پیش‌نمایش متنی در دسترس نیست.",ar:"ملف ثنائي: المعاينة النصية غير متاحة.",zh:"二进制文件，无法显示文本预览。"},
+  "File exceeds the 2 MiB text preview limit.":{fa:"حجم فایل از محدودیت ۲ مگابایت برای پیش‌نمایش متنی بیشتر است.",ar:"يتجاوز الملف حد المعاينة النصية البالغ ٢ ميبيبايت.",zh:"文件超过 2 MiB 文本预览限制。"},
+  "Symbolic link target (not followed)":{fa:"مقصد پیوند نمادین (باز نمی‌شود)",ar:"هدف الرابط الرمزي (لم يتم اتباعه)",zh:"符号链接目标（不会访问目标）"},
+  "Submodule commit":{fa:"کامیت زیرماژول",ar:"التزام الوحدة الفرعية",zh:"子模块提交"},
+  "File contents":{fa:"محتوای فایل",ar:"محتويات الملف",zh:"文件内容"},
+  "Annotate this revision":{fa:"نویسنده خط‌های این نسخه",ar:"تعليقات أسطر هذه النسخة",zh:"追溯此版本的每一行"},
+  "Annotations refer to this committed snapshot, without local edits.":{fa:"نویسنده خط‌ها برای همین نسخه کامیت‌شده نمایش داده می‌شود و تغییرات محلی لحاظ نمی‌شوند.",ar:"تشير التعليقات إلى هذه النسخة الملتزم بها دون التعديلات المحلية.",zh:"追溯针对当前已提交版本，不包含本地修改。"},
+  "File history follows the current HEAD.":{fa:"تاریخچه فایل بر اساس HEAD فعلی است.",ar:"يتبع سجل الملف HEAD الحالي.",zh:"文件历史基于当前 HEAD。"},
+  "Author":{fa:"نویسنده",ar:"المؤلف",zh:"作者"},
+  "Original line":{fa:"خط اصلی",ar:"السطر الأصلي",zh:"原始行"},
+  "Line":{fa:"خط",ar:"السطر",zh:"行"},
+  "Source":{fa:"کد",ar:"المصدر",zh:"源码"},
+};
+export function revisionText(key:string,language:Language){return language==="en"?key:revisionBrowserMessages[key]?.[language]??key;}

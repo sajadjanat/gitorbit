@@ -5,6 +5,20 @@ pub mod history;
 mod install;
 pub mod version_control;
 pub mod git_tools;
+pub mod commit_options;
+pub mod file_history;
+pub mod remotes;
+pub mod partial_stage;
+pub mod stash_tools;
+pub mod shelves;
+pub mod interactive_rebase;
+pub mod repository_setup;
+pub mod tag_tools;
+pub mod ignored_files;
+pub mod delete_files;
+pub mod patch_tools;
+pub mod revision_tree;
+pub mod submodules;
 use git::{Snapshot, Workspace};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::{
@@ -248,11 +262,12 @@ async fn repository_history(
     path: String,
     limit: usize,
     scope: String,
+    filters: Option<history::Filters>,
 ) -> Result<history::History, String> {
     let path = repository_path(&state, &workspace_id, &path)?;
     tauri::async_runtime::spawn_blocking(move || {
         let (git, _) = git::find_git().ok_or("Git is not installed.")?;
-        history::read(&git, &path, limit, &scope)
+        history::read_filtered(&git, &path, limit, &scope, &filters.unwrap_or_default())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -449,6 +464,242 @@ async fn repository_tools(
     }).await.map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn repository_commit_options(state: State<'_, AppState>, workspace_id: String, path: String) -> Result<commit_options::Info, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        commit_options::info(&git, &path)
+    }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_history_commit_files(state: State<'_, AppState>, workspace_id: String, path: String, commit_hash: String) -> Result<Vec<version_control::CommitFile>, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; version_control::history_commit_files(&git, &path, &commit_hash) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_history_commit_diff(state: State<'_, AppState>, workspace_id: String, path: String, commit_hash: String, file: String) -> Result<version_control::CommitDiff, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; version_control::history_commit_diff(&git, &path, &commit_hash, &file) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_remotes(state: State<'_, AppState>, workspace_id: String, path: String) -> Result<remotes::RemotesState, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; remotes::inspect(&git, &path) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_tags(state: State<'_, AppState>, workspace_id: String, path: String) -> Result<tag_tools::TagState, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; tag_tools::inspect(&git, &path) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_revision_tree(state: State<'_, AppState>, workspace_id: String, path: String, revision: String, directory: String) -> Result<revision_tree::RevisionTree, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; revision_tree::read(&git, &path, &revision, &directory) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_revision_blob(state: State<'_, AppState>, workspace_id: String, path: String, revision: String, file: String) -> Result<revision_tree::RevisionBlob, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; revision_tree::blob(&git, &path, &revision, &file) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_submodules(state: State<'_, AppState>, workspace_id: String, path: String) -> Result<submodules::SubmodulesState, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; submodules::inspect(&git, &path) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_update_submodule(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, submodule_path: String, review_token: String) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; submodules::update(&git, &path, &submodule_path, &review_token) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn repository_review_tag_remote(state: State<'_, AppState>, workspace_id: String, path: String, action: String, tag: String, remote: String) -> Result<tag_tools::TagRemoteReview, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; tag_tools::review_remote(&git, &path, &action, &tag, &remote) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_tag_action(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, request: tag_tools::TagRequest) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; tag_tools::execute(&git, &path, &request) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn repository_ignore_files_review(state: State<'_, AppState>, workspace_id: String, path: String, paths: Vec<String>, target: String) -> Result<ignored_files::Info, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; ignored_files::review(&git, &path, &paths, &target) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_ignore_files_apply(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, request: ignored_files::Request) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; ignored_files::apply(&git, &path, &request) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn repository_ignored_files(state: State<'_, AppState>, workspace_id: String, path: String) -> Result<ignored_files::Inventory, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; ignored_files::inventory(&git, &path) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_delete_files_review(state: State<'_, AppState>, workspace_id: String, path: String, paths: Vec<String>) -> Result<delete_files::Review, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; delete_files::review(&git, &path, &paths) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_delete_files(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, request: delete_files::Request) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; delete_files::apply(&git, &path, &request) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn repository_export_patch(state: State<'_, AppState>, workspace_id: String, path: String, paths: Vec<String>, staged: bool, review_token: String) -> Result<patch_tools::PatchExport, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; patch_tools::export(&git, &path, &paths, staged, &review_token) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_preview_patch(state: State<'_, AppState>, workspace_id: String, path: String, patch_path: String) -> Result<patch_tools::PatchPreview, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; patch_tools::preview(&git, &path, &patch_path) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_apply_patch(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, patch_path: String, review_token: String) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; patch_tools::apply(&git, &path, &patch_path, &review_token) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn save_patch_file(path: String, text: String) -> Result<String, String> {
+    if text.len() > 8 * 1024 * 1024 { return Err("The patch is too large to save.".into()); }
+    let destination = PathBuf::from(&path);
+    if !destination.is_absolute() || destination.is_symlink() {return Err("Choose a regular patch file destination.".into());}
+    tauri::async_runtime::spawn_blocking(move || {fs::write(destination, text).map_err(|e| e.to_string())?;Ok(path)}).await.map_err(|e|e.to_string())?
+}
+#[tauri::command]
+async fn setup_repository(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, request: repository_setup::SetupRequest) -> Result<repository_setup::SetupResult, String> {
+    let root = state.workspaces.lock().map_err(|e| e.to_string())?.iter().find(|w| w.id == workspace_id).map(|w| PathBuf::from(&w.path)).ok_or("Select a saved workspace.")?;
+    let root = fs::canonicalize(root).map_err(|e| e.to_string())?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(root.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; repository_setup::execute(&git, &root, &request) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn repository_interactive_rebase(state: State<'_, AppState>, workspace_id: String, path: String, base: String) -> Result<interactive_rebase::Info, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; interactive_rebase::inspect(&git, &path, &base) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_start_interactive_rebase(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, request: interactive_rebase::Request) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; interactive_rebase::start(&git, &path, &request) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn repository_stash_preview(state: State<'_, AppState>, workspace_id: String, path: String, stash_hash: String) -> Result<stash_tools::StashPreview, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; stash_tools::preview(&git, &path, &stash_hash) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_stash_diff(state: State<'_, AppState>, workspace_id: String, path: String, stash_hash: String, file: String, area: String) -> Result<version_control::CommitDiff, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; stash_tools::diff(&git, &path, &stash_hash, &file, &area) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_stash_selected(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, paths: Vec<String>, message: String, review_token: String) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; stash_tools::save_selected(&git, &path, &paths, &message, &review_token) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn repository_stash_branch(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, stash_hash: String, name: String, review_token: String) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; stash_tools::branch(&git, &path, &stash_hash, &name, &review_token) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn repository_shelves(state: State<'_, AppState>, workspace_id: String, path: String) -> Result<shelves::Shelves, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; shelves::inspect(&git, &path) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_shelf_preview(state: State<'_, AppState>, workspace_id: String, path: String, id: String) -> Result<stash_tools::StashPreview, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; shelves::preview(&git, &path, &id) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_shelf_diff(state: State<'_, AppState>, workspace_id: String, path: String, id: String, file: String, area: String) -> Result<version_control::CommitDiff, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; shelves::diff(&git, &path, &id, &file, &area) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_shelf_action(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, request: shelves::Request) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; shelves::execute(&git, &path, &request) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn repository_remote_action(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, request: remotes::RemoteRequest) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; remotes::execute(&git, &path, &request) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn repository_partial_stage(state: State<'_, AppState>, workspace_id: String, path: String, file: String, staged: bool) -> Result<partial_stage::Hunks, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || { let (git, _) = git::find_git().ok_or("Git is not installed.")?; partial_stage::read(&git, &path, &file, staged) }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_stage_hunk(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, file: String, staged: bool, index: usize, review_token: String, lines: Option<Vec<usize>>) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || { let _guard = lock.lock().map_err(|e| e.to_string())?; let (git, _) = git::find_git().ok_or("Git is not installed.")?; partial_stage::apply_lines(&git, &path, &file, staged, index, &review_token, lines.as_deref()) }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id); result
+}
+#[tauri::command]
+async fn repository_commit_reviewed(app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, request: commit_options::Request) -> Result<String, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    let lock = state.operation_locks.lock().map_err(|e| e.to_string())?.entry(path.clone()).or_default().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock.lock().map_err(|e| e.to_string())?;
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        commit_options::commit(&git, &path, &request)
+    }).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace-invalidated", &workspace_id);
+    result
+}
+#[tauri::command]
+async fn repository_file_history(state: State<'_, AppState>, workspace_id: String, path: String, file: String, limit: usize) -> Result<file_history::FileHistory, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        file_history::read(&git, &path, &file, limit)
+    }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_file_history_diff(state: State<'_, AppState>, workspace_id: String, path: String, file: String, commit_hash: String) -> Result<file_history::FileDiff, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        file_history::diff(&git, &path, &file, &commit_hash)
+    }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn repository_file_blame(state: State<'_, AppState>, workspace_id: String, path: String, file: String, revision: String) -> Result<file_history::FileBlame, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        file_history::blame(&git, &path, &file, &revision)
+    }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
 async fn repository_tool_action(
     app: tauri::AppHandle, state: State<'_, AppState>, workspace_id: String, path: String, request: git_tools::Request,
 ) -> Result<String, String> {
@@ -585,7 +836,7 @@ pub fn run() {
             }
             #[cfg(not(debug_assertions))] let _ = (webview, payload);
         })
-        .invoke_handler(tauri::generate_handler![load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, repository_commit_diff, repository_authentication, sign_in_repository, cancel_git_sign_in, open_git_sign_in_setup, push_repository, repository_sync, repository_changes, repository_diff, repository_action, repository_tools, repository_tool_action, repository_compare, repository_conflict, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
+        .invoke_handler(tauri::generate_handler![repository_delete_files_review, repository_delete_files, repository_shelves, repository_shelf_preview, repository_shelf_diff, repository_shelf_action, load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, repository_commit_diff, repository_authentication, sign_in_repository, cancel_git_sign_in, open_git_sign_in_setup, push_repository, repository_sync, repository_changes, repository_diff, repository_action, repository_revision_tree, repository_revision_blob, repository_submodules, repository_update_submodule, repository_tags, repository_review_tag_remote, repository_tag_action, repository_ignore_files_review, repository_ignore_files_apply, repository_ignored_files, repository_export_patch, repository_preview_patch, repository_apply_patch, save_patch_file, setup_repository, repository_interactive_rebase, repository_start_interactive_rebase, repository_stash_preview, repository_stash_diff, repository_stash_selected, repository_stash_branch, repository_history_commit_files, repository_history_commit_diff, repository_commit_options, repository_commit_reviewed, repository_file_history, repository_file_history_diff, repository_file_blame, repository_remotes, repository_remote_action, repository_partial_stage, repository_stage_hunk, repository_tools, repository_tool_action, repository_compare, repository_conflict, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
         .run(context).expect("error while running GitOrbit");
 }
 

@@ -410,7 +410,7 @@ pub fn scan(
                             "--porcelain=v2",
                             "--branch",
                             "-z",
-                            "--untracked-files=normal",
+                            "--untracked-files=all",
                         ]);
                         let result = capture(cmd, Duration::from_secs(12))
                             .and_then(|bytes| parse_status(&bytes));
@@ -630,6 +630,9 @@ mod tests {
         fs::create_dir(root.path().join(".idea")).unwrap();
         fs::write(root.path().join(".idea/php.xml"), "ignored").unwrap();
         fs::write(root.path().join("new.txt"), "new").unwrap();
+        fs::create_dir(root.path().join("new folder")).unwrap();
+        fs::write(root.path().join("new folder/one.txt"), "one").unwrap();
+        fs::write(root.path().join("new folder/two.txt"), "two").unwrap();
         let w = Workspace {
             id: "test".into(),
             name: "test".into(),
@@ -638,7 +641,8 @@ mod tests {
         };
         let s = scan(&w, &git, false, &HashMap::new(), None);
         assert_eq!(s.repositories.len(), 1);
-        assert_eq!(s.repositories[0].changed, 2);
+        assert_eq!(s.repositories[0].changed, 4);
+        assert_eq!(s.repositories[0].changed, crate::version_control::changes(&git, root.path()).unwrap().changed);
         assert!(s.repositories[0].error.is_none());
         assert!(s.repositories[0]
             .files

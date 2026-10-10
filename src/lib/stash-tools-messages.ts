@@ -1,0 +1,25 @@
+import type { Language } from "./i18n";
+export const stashToolsMessages: Record<string, Record<Exclude<Language,"en">, string>> = {
+  "View stash": {fa:"نمایش استش", ar:"عرض التخزين المؤقت", zh:"查看暂存备份"},
+  "Stash preview": {fa:"پیش‌نمایش استش", ar:"معاينة التخزين المؤقت", zh:"暂存备份预览"},
+  "Review saved working-tree, index, and unversioned changes separately.": {fa:"تغییرات ذخیره‌شده پوشه کاری، ایندکس و فایل‌های ردیابی‌نشده را جداگانه بررسی کنید.", ar:"راجع تغييرات مجلد العمل والفهرس والملفات غير المتعقبة المحفوظة بشكل منفصل.", zh:"分别查看已保存的工作区、索引和未跟踪文件更改。"},
+  "Saved working tree (all tracked changes)": {fa:"پوشه کاری ذخیره‌شده (همه تغییرات ردیابی‌شده)", ar:"مجلد العمل المحفوظ (كل التغييرات المتعقبة)", zh:"已保存的工作区（全部已跟踪更改）"},
+  "Saved index (staged changes)": {fa:"ایندکس ذخیره‌شده (تغییرات استیج‌شده)", ar:"الفهرس المحفوظ (التغييرات المجهزة)", zh:"已保存的索引（已暂存更改）"},
+  "Saved unversioned files": {fa:"فایل‌های ردیابی‌نشده ذخیره‌شده", ar:"الملفات غير المتعقبة المحفوظة", zh:"已保存的未跟踪文件"},
+  "Loading stash…": {fa:"در حال دریافت استش…", ar:"جارٍ تحميل التخزين المؤقت…", zh:"正在加载暂存备份…"},
+  "No files in this group.": {fa:"در این گروه فایلی وجود ندارد.", ar:"لا توجد ملفات في هذه المجموعة.", zh:"此分组中没有文件。"},
+  "Choose a file to inspect its saved changes.": {fa:"برای دیدن تغییرات ذخیره‌شده، یک فایل انتخاب کنید.", ar:"اختر ملفًا لفحص تغييراته المحفوظة.", zh:"选择文件以查看已保存的更改。"},
+  "Create branch from stash": {fa:"ساخت شاخه از استش", ar:"إنشاء فرع من التخزين المؤقت", zh:"从暂存备份创建分支"},
+  "Create and check out a new branch at the stash base, then restore its index and files. The original stash is kept.": {fa:"شاخه‌ای در نقطه شروع استش ساخته و فعال می‌شود؛ سپس ایندکس و فایل‌های آن برگردانده می‌شوند. استش اصلی حفظ می‌شود.", ar:"أنشئ فرعًا جديدًا عند أساس التخزين المؤقت وانتقل إليه، ثم استعد الفهرس والملفات. يُحتفظ بالتخزين الأصلي.", zh:"在暂存备份的基础提交创建并切换到新分支，然后恢复索引和文件。原始备份将被保留。"},
+  "Stash selected files": {fa:"استش فایل‌های انتخابی", ar:"تخزين الملفات المحددة مؤقتًا", zh:"备份所选文件"},
+  "Only the reviewed files will be saved and cleaned. Other local changes stay in place.": {fa:"فقط فایل‌های بررسی‌شده ذخیره و پاک‌سازی می‌شوند. سایر تغییرات محلی در جای خود می‌مانند.", ar:"ستُحفظ وتُنظف الملفات التي تمت مراجعتها فقط. تبقى التغييرات المحلية الأخرى كما هي.", zh:"仅保存并清理已审核的文件，其他本地更改保持原样。"},
+  "Stash message": {fa:"پیام استش", ar:"رسالة التخزين المؤقت", zh:"备份说明"},
+  "Review selected paths": {fa:"بررسی مسیرهای انتخابی", ar:"مراجعة المسارات المحددة", zh:"审核所选路径"},
+  "Preparing stash review…": {fa:"در حال آماده‌سازی بررسی استش…", ar:"جارٍ إعداد مراجعة التخزين المؤقت…", zh:"正在准备备份审核…"},
+  "Selected files saved in a stash.": {fa:"فایل‌های انتخابی در استش ذخیره شدند.", ar:"حُفظت الملفات المحددة في تخزين مؤقت.", zh:"所选文件已保存到暂存备份。"},
+  "Stash restored on a new branch. The original stash is preserved.": {fa:"استش روی شاخه جدید برگردانده شد. استش اصلی حفظ شده است.", ar:"استُعيد التخزين المؤقت على فرع جديد. حُفظ التخزين الأصلي.", zh:"已在新分支恢复暂存备份，原始备份仍被保留。"},
+  "This stash no longer exists. Refresh the stash list.": {fa:"این استش دیگر وجود ندارد. فهرست استش‌ها را بازخوانی کنید.", ar:"لم يعد هذا التخزين المؤقت موجودًا. حدّث القائمة.", zh:"此暂存备份已不存在，请刷新列表。"},
+  "Select between 1 and 1,000 changed files to stash.": {fa:"بین ۱ تا ۱۰۰۰ فایل تغییریافته برای استش انتخاب کنید.", ar:"حدد من ١ إلى ١٠٠٠ ملف متغير للتخزين المؤقت.", zh:"请选择 1 到 1,000 个已更改文件进行备份。"},
+  "The selected files changed. Refresh and review the stash again.": {fa:"فایل‌های انتخابی تغییر کرده‌اند. بازخوانی کنید و استش را دوباره بررسی کنید.", ar:"تغيرت الملفات المحددة. حدّث وراجع التخزين المؤقت مجددًا.", zh:"所选文件已变化，请刷新并重新审核。"},
+};
+export function stashText(key: string, language: Language) { return language === "en" ? key : stashToolsMessages[key]?.[language] ?? key; }

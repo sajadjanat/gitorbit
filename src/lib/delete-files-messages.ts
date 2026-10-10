@@ -1,0 +1,15 @@
+export const deleteFilesMessages:Record<string,{fa:string;ar:string;zh:string}>={
+  "Delete file":{fa:"حذف فایل",ar:"حذف الملف",zh:"删除文件"},
+  "Delete files":{fa:"حذف فایل‌ها",ar:"حذف الملفات",zh:"删除文件"},
+  "This file will be permanently deleted from the project folder. It will not go to the Recycle Bin.":{fa:"این فایل برای همیشه از پوشهٔ پروژه پاک می‌شود و به سطل زباله نمی‌رود.",ar:"سيُحذف هذا الملف نهائيًا من مجلد المشروع، ولن يُنقل إلى سلة المحذوفات.",zh:"此文件将从项目文件夹中永久删除，不会移入回收站。"},
+  "These files will be permanently deleted from the project folder. They will not go to the Recycle Bin.":{fa:"این فایل‌ها برای همیشه از پوشهٔ پروژه پاک می‌شوند و به سطل زباله نمی‌روند.",ar:"ستُحذف هذه الملفات نهائيًا من مجلد المشروع، ولن تُنقل إلى سلة المحذوفات.",zh:"这些文件将从项目文件夹中永久删除，不会移入回收站。"},
+  "Reviewing files…":{fa:"در حال بررسی فایل‌ها…",ar:"جارٍ مراجعة الملفات…",zh:"正在检查文件…"},
+  "Select up to 2000 changed or unversioned files to delete.":{fa:"حداکثر ۲۰۰۰ فایل تغییرکرده یا جدید را برای حذف انتخاب کنید.",ar:"اختر حتى 2000 ملف معدّل أو غير متتبّع لحذفها.",zh:"请选择最多 2000 个已更改或未跟踪的文件进行删除。"},
+  "A selected file is missing. Refresh the file list.":{fa:"یکی از فایل‌های انتخابی دیگر وجود ندارد. فهرست را تازه‌سازی کنید.",ar:"أحد الملفات المحددة لم يعد موجودًا. حدّث قائمة الملفات.",zh:"某个选中的文件已不存在。请刷新文件列表。"},
+  "Deleting symbolic links or linked folders is not supported here.":{fa:"حذف لینک‌های نمادین یا پوشه‌های لینک‌شده از این بخش پشتیبانی نمی‌شود.",ar:"حذف الروابط الرمزية أو المجلدات المرتبطة غير مدعوم هنا.",zh:"此处不支持删除符号链接或链接文件夹。"},
+  "Select regular files to delete. Folders and submodules are not supported.":{fa:"برای حذف، فایل معمولی انتخاب کنید. حذف پوشه و ساب‌ماژول پشتیبانی نمی‌شود.",ar:"اختر ملفات عادية لحذفها. المجلدات والوحدات الفرعية غير مدعومة.",zh:"请选择普通文件进行删除。不支持文件夹和子模块。"},
+  "Select a file from Changes or Unversioned files.":{fa:"فایلی از بخش تغییرات یا فایل‌های جدید انتخاب کنید.",ar:"اختر ملفًا من التغييرات أو الملفات غير المتتبّعة.",zh:"请从更改或未跟踪文件中选择文件。"},
+  "Resolve conflicts before deleting files.":{fa:"پیش از حذف فایل‌ها، تعارض‌ها را حل کنید.",ar:"حلّ التعارضات قبل حذف الملفات.",zh:"删除文件前请先解决冲突。"},
+  "Finish or abort the current Git operation before deleting files.":{fa:"پیش از حذف فایل‌ها، عملیات جاری گیت را تمام یا لغو کنید.",ar:"أكمل عملية Git الحالية أو ألغها قبل حذف الملفات.",zh:"删除文件前请完成或中止当前 Git 操作。"},
+  "Selected files deleted. Review and stage tracked deletions when ready.":{fa:"فایل‌های انتخابی حذف شدند. حذف فایل‌های تحت گیت را بررسی و در صورت نیاز استیج کنید.",ar:"حُذفت الملفات المحددة. راجع حذف الملفات المتتبّعة وجهّزه عند الاستعداد.",zh:"已删除选中的文件。请检查受跟踪文件的删除，并在准备好后暂存。"},
+};

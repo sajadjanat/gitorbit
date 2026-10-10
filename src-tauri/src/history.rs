@@ -1,5 +1,5 @@
 use crate::git::{capture, git_command};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{path::Path, time::Duration};
 
 pub const MAX_COMMITS: usize = 5000;
@@ -62,9 +62,23 @@ fn parse_commits(bytes: &[u8]) -> Result<Vec<Commit>, String> {
         .collect()
 }
 
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Filters { pub text: String, pub author: String, pub file: String, pub branch: String, pub after: String, pub before: String }
+
 pub fn read(git: &Path, repo: &Path, limit: usize, scope: &str) -> Result<History, String> {
+    read_filtered(git, repo, limit, scope, &Filters::default())
+}
+pub fn read_filtered(git: &Path, repo: &Path, limit: usize, scope: &str, filters: &Filters) -> Result<History, String> {
     if !(1..=MAX_COMMITS).contains(&limit) || !["all", "head"].contains(&scope) {
         return Err("Choose a valid history scope and commit limit.".into());
+    }
+    for value in [&filters.text, &filters.author, &filters.file, &filters.branch, &filters.after, &filters.before] {
+        if value.len() > 1024 || value.contains(['\0', '\n', '\r']) { return Err("Enter valid history filters.".into()); }
+    }
+    if !filters.file.is_empty() && (Path::new(&filters.file).is_absolute() || filters.file.contains('\\') || filters.file.split('/').any(|p| p == ".." || p == ".git")) { return Err("Choose a repository-relative file path.".into()); }
+    for value in [&filters.after, &filters.before] {
+        if !value.is_empty() && (value.len() != 10 || !value.bytes().enumerate().all(|(i,b)| if i==4 || i==7 {b==b'-'} else {b.is_ascii_digit()})) { return Err("Enter dates as YYYY-MM-DD.".into()); }
     }
     // Reject non-repositories before interpreting a missing HEAD as an unborn branch.
     run(git, repo, &["rev-parse", "--git-dir"])?;
@@ -116,7 +130,18 @@ pub fn read(git: &Path, repo: &Path, limit: usize, scope: &str) -> Result<Histor
         });
     }
     let count = format!("--max-count={}", limit + 1);
+    let mut options = vec![];
+    if !filters.text.is_empty() { options.push(format!("--grep={}", filters.text)); }
+    if !filters.author.is_empty() { options.push(format!("--author={}", filters.author)); }
+    if !filters.after.is_empty() { options.push(format!("--since={}T00:00:00", filters.after)); }
+    if !filters.before.is_empty() { options.push(format!("--until={}T23:59:59", filters.before)); }
+    if !filters.branch.is_empty() {
+        if !refs.iter().any(|r| format!("refs/{}/{}", match r.kind.as_str() {"branch"=>"heads", "remote"=>"remotes", _=>"tags"},r.name) == filters.branch) {
+            return Err("Select a branch or tag from the history references.".into());
+        }
+    }
     let mut args = vec![
+        "--literal-pathspecs",
         "log",
         "--topo-order",
         "--no-show-signature",
@@ -125,15 +150,19 @@ pub fn read(git: &Path, repo: &Path, limit: usize, scope: &str) -> Result<Histor
         "-z",
         "--format=%H%x00%P%x00%an%x00%at%x00%s",
         &count,
+        "--fixed-strings", "--regexp-ignore-case",
     ];
-    if scope == "all" {
+    args.extend(options.iter().map(String::as_str));
+    if !filters.branch.is_empty() { args.push(&filters.branch); }
+    else if scope == "all" {
         args.extend(["--branches", "--remotes", "--tags"]);
     }
     // Including HEAD keeps a detached checkout visible even without a named ref.
-    if head.is_some() {
+    if head.is_some() && filters.branch.is_empty() {
         args.push("HEAD");
     }
     args.push("--");
+    if !filters.file.is_empty() { args.push(&filters.file); }
     let mut commits = parse_commits(&run(git, repo, &args)?)?;
     let has_more = commits.len() > limit;
     commits.truncate(limit);
@@ -265,5 +294,103 @@ mod tests {
     fn malformed_history_is_not_a_clean_empty_graph() {
         assert!(parse_commits(b"incomplete\0").is_err());
         assert!(parse_commits(b"hash\0\0author\0invalid\0subject\0").is_err());
+    }
+    fn subjects(history: &History) -> Vec<&str> {
+        history.commits.iter().map(|commit| commit.subject.as_str()).collect()
+    }
+    fn dated_commit(git: &Path, repo: &Path, subject: &str, date: &str) {
+        let mut command = git_command(git, repo);
+        command.args(["commit", "--allow-empty", "-qm", subject])
+            .env("GIT_AUTHOR_DATE", date).env("GIT_COMMITTER_DATE", date);
+        capture(command, Duration::from_secs(20)).unwrap();
+    }
+    #[test]
+    fn text_and_author_filters_match_literal_strings_case_insensitively() {
+        let (root, git) = fixture(); let repo = root.path();
+        commit(&git, repo, "Root");
+        exec(&git, repo, &["commit", "--allow-empty", "-qm", "Ship [deploy].*\n\nTicket: exact-body-token", "--author=Release [Bot] <bot@example.com>"]);
+        exec(&git, repo, &["commit", "--allow-empty", "-qm", "Ship deploy-anything", "--author=Release Bot <other@example.com>"]);
+        let literal = read_filtered(&git, repo, 100, "all", &Filters {text: "[DEPLOY].*".into(), ..Default::default()}).unwrap();
+        assert_eq!(subjects(&literal), ["Ship [deploy].*"]);
+        let body = read_filtered(&git, repo, 100, "all", &Filters {text: "exact-body-token".into(), ..Default::default()}).unwrap();
+        assert_eq!(subjects(&body), ["Ship [deploy].*"]);
+        let author = read_filtered(&git, repo, 100, "head", &Filters {author: "release [BOT]".into(), ..Default::default()}).unwrap();
+        assert_eq!(subjects(&author), ["Ship [deploy].*"]);
+        let both = read_filtered(&git, repo, 100, "head", &Filters {text: "deploy-anything".into(), author: "[Bot]".into(), ..Default::default()}).unwrap();
+        assert!(both.commits.is_empty());
+    }
+    #[test]
+    fn file_filters_use_literal_paths_including_glob_and_option_characters() {
+        let (root, git) = fixture(); let repo = root.path();
+        commit(&git, repo, "Root");
+        for (file, message) in [("[cache] #.txt", "Literal bracket path"), ("c #.txt", "Glob lookalike path"), ("--grep=anything.txt", "Option-looking path")] {
+            fs::write(repo.join(file), message).unwrap();
+            exec(&git, repo, &["--literal-pathspecs", "add", "--", file]); commit(&git, repo, message);
+        }
+        let bracket = read_filtered(&git, repo, 100, "all", &Filters {file: "[cache] #.txt".into(), ..Default::default()}).unwrap();
+        assert_eq!(subjects(&bracket), ["Literal bracket path"]);
+        let option = read_filtered(&git, repo, 100, "all", &Filters {file: "--grep=anything.txt".into(), ..Default::default()}).unwrap();
+        assert_eq!(subjects(&option), ["Option-looking path"]);
+        assert_eq!(fs::read_to_string(repo.join("[cache] #.txt")).unwrap(), "Literal bracket path");
+    }
+    #[test]
+    fn branch_and_tag_filters_select_reviewed_refs_without_including_head() {
+        let (root, git) = fixture(); let repo = root.path(); commit(&git, repo, "Root");
+        exec(&git, repo, &["checkout", "-qb", "feature,with-comma"]);commit(&git, repo, "Feature only");
+        exec(&git, repo, &["tag", "-a", "feature-tag", "-m", "Feature release"]);
+        exec(&git, repo, &["update-ref", "refs/remotes/origin/feature", "HEAD"]);
+        exec(&git, repo, &["checkout", "-q", "main"]);commit(&git, repo, "Main only");
+        for reference in ["refs/heads/feature,with-comma", "refs/tags/feature-tag", "refs/remotes/origin/feature"] {
+            let selected = read_filtered(&git, repo, 100, "all", &Filters {branch: reference.into(), ..Default::default()}).unwrap();
+            assert_eq!(subjects(&selected), ["Feature only", "Root"]);
+            assert_eq!(selected.head, read(&git, repo, 100, "head").unwrap().head);
+            assert!(selected.refs.iter().any(|r| r.name == "main"));
+        }
+    }
+    #[test]
+    fn date_windows_and_filtered_pagination_use_matching_commits() {
+        let (root, git) = fixture(); let repo = root.path();
+        dated_commit(&git, repo, "Needle January first", "2026-01-01T12:00:00+0000");
+        dated_commit(&git, repo, "Needle January second", "2026-01-02T12:00:00+0000");
+        dated_commit(&git, repo, "Other January third", "2026-01-03T12:00:00+0000");
+        let window = read_filtered(&git, repo, 100, "head", &Filters {after: "2026-01-02".into(), before: "2026-01-02".into(), ..Default::default()}).unwrap();
+        assert_eq!(subjects(&window), ["Needle January second"]);
+        let first = read_filtered(&git, repo, 1, "all", &Filters {text: "Needle".into(), ..Default::default()}).unwrap();
+        assert_eq!(subjects(&first), ["Needle January second"]);assert!(first.has_more);
+        let complete = read_filtered(&git, repo, 2, "all", &Filters {text: "Needle".into(), ..Default::default()}).unwrap();
+        assert_eq!(subjects(&complete), ["Needle January second", "Needle January first"]);assert!(!complete.has_more);
+        let none = read_filtered(&git, repo, 1, "head", &Filters {after: "2026-02-01".into(), ..Default::default()}).unwrap();
+        assert!(none.commits.is_empty());assert!(!none.has_more);
+    }
+    #[test]
+    fn hostile_filters_are_rejected_and_search_text_cannot_become_an_option() {
+        let (root, git) = fixture(); let repo = root.path();commit(&git, repo, "Root");commit(&git, repo, "literal --all in message");
+        let searched = read_filtered(&git, repo, 100, "all", &Filters {text: "--all".into(), ..Default::default()}).unwrap();
+        assert_eq!(subjects(&searched), ["literal --all in message"]);
+        for path in ["../secret", "src/../../secret", ".git/config", "src/.git/config", "C:\\secret", "src\\secret"] {
+            assert!(read_filtered(&git, repo, 100, "all", &Filters {file: path.into(), ..Default::default()}).is_err(), "accepted path {path}");
+        }
+        let absolute = repo.join("outside.txt").to_string_lossy().into_owned();
+        assert!(read_filtered(&git, repo, 100, "all", &Filters {file: absolute, ..Default::default()}).is_err());
+        for reference in ["--all", "HEAD", "HEAD~1", "refs/heads/main --all", "refs/heads/unknown"] {
+            assert!(read_filtered(&git, repo, 100, "all", &Filters {branch: reference.into(), ..Default::default()}).is_err(), "accepted ref {reference}");
+        }
+        for filter in [Filters {text:"line\nbreak".into(),..Default::default()}, Filters {author:"name\0option".into(),..Default::default()}, Filters {before:"01/01/2026".into(),..Default::default()}, Filters {after:"2026-1-01".into(),..Default::default()}, Filters {text:"x".repeat(1025),..Default::default()}] {
+            assert!(read_filtered(&git, repo, 100, "all", &filter).is_err());
+        }
+        assert_eq!(subjects(&read(&git, repo, 100, "head").unwrap()), ["literal --all in message", "Root"]);
+    }
+    #[test]
+    fn default_filters_preserve_existing_graph_refs_and_pagination() {
+        let (root, git) = fixture(); let repo = root.path();commit(&git, repo, "Root");
+        exec(&git, repo, &["checkout", "-qb", "feature"]);commit(&git, repo, "Feature only");
+        exec(&git, repo, &["checkout", "-q", "main"]);commit(&git, repo, "Main only");
+        for scope in ["all", "head"] {
+            let previous = read(&git, repo, 2, scope).unwrap();
+            let filtered = read_filtered(&git, repo, 2, scope, &Filters::default()).unwrap();
+            assert_eq!(serde_json::to_value(&previous).unwrap(), serde_json::to_value(&filtered).unwrap());
+        }
+        assert_eq!(subjects(&read(&git, repo, 100, "head").unwrap()), ["Main only", "Root"]);
+        assert!(read(&git, repo, 2, "all").unwrap().has_more);
     }
 }

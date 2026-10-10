@@ -29,6 +29,8 @@ vi.mock("./lib/native", async (importOriginal) => ({
     changes: vi.fn(),
     diff: vi.fn(),
     action: vi.fn(),
+    commitOptions: vi.fn(),
+    commitReviewed: vi.fn(),
     tools: vi.fn(),
     toolAction: vi.fn(),
   },
@@ -103,6 +105,8 @@ beforeEach(() => {
   vi.mocked(native.changes).mockResolvedValue(snapshot("a").repositories[0]);
   vi.mocked(native.diff).mockResolvedValue({ text: "@@ -1 +1 @@\n-old\n+new", truncated: false });
   vi.mocked(native.action).mockResolvedValue("Updated.");
+  vi.mocked(native.commitOptions).mockResolvedValue({reviewToken:"reviewed", head:"a".repeat(40), previousMessage:"Previous", canAmend:true, blockedReason:null, staged:1, published:false, signOffIdentity:"Test <test@example.invalid>"});
+  vi.mocked(native.commitReviewed).mockResolvedValue("Created commit abc123.");
   vi.mocked(native.toolAction).mockResolvedValue("Git operation completed.");
   vi.mocked(native.tools).mockResolvedValue({reviewToken: "reviewed", head: "abcdef123456", branch: "main", operation: null, changed: 1, conflicts: 0, refs: [], stashes: [], reflog: [], remotes: ["origin"]});
 });
@@ -141,10 +145,10 @@ describe("GitOrbit", () => {
     await user.click(screen.getByRole("button", { name: "api" }));
     expect(await screen.findByText("server.ts")).toBeInTheDocument();
     const tabs = within(screen.getByRole("dialog")).getAllByRole("tab");
-    expect(tabs.map(tab => tab.textContent)).toEqual(["Version Control2", "Push0", "Git graph", "Branches"]);
+    expect(tabs.map(tab => tab.textContent)).toEqual(["Version Control2", "Push0", "Branches", "Git graph"]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     expect(native.history).not.toHaveBeenCalled();
-    await user.click(tabs[2]);
+    await user.click(within(screen.getByRole("dialog")).getByRole("tab", { name: "Git graph" }));
     expect(await screen.findByText("Add project")).toBeInTheDocument();
     await user.click(
       within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }),
@@ -234,6 +238,8 @@ describe("GitOrbit", () => {
     });
     const user = userEvent.setup(); render(<App />);
     await screen.findByRole("button", { name: "api" });
+    await user.click(screen.getByRole("combobox", {name:"Repository filter"}));
+    await user.click(screen.getByRole("option", {name:"Needs attention"}));
     expect(screen.queryByRole("button", { name: "landing" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Pull all" }));
     await waitFor(() => expect(native.action).toHaveBeenCalledWith("a", "C:/projects/landing", "pull"));
@@ -266,7 +272,7 @@ describe("GitOrbit", () => {
   it("retains a failed commit message and hook error after reloading files", async () => {
     const user = userEvent.setup();
     vi.mocked(native.changes).mockResolvedValue(repo("api", { changed: 1, staged: 1, files: [{ path: "src/server.ts", originalPath: null, status: "M " }] }));
-    vi.mocked(native.action).mockRejectedValue("Pre-commit hook rejected the commit.");
+    vi.mocked(native.commitReviewed).mockRejectedValue("Pre-commit hook rejected the commit.");
     render(<App />); await user.click(await screen.findByRole("button", { name: "api" }));
     await user.click(screen.getByRole("tab", { name: /Version Control/ }));
     await screen.findByRole("checkbox", { name: "Select staged src/server.ts" });
@@ -318,6 +324,6 @@ describe("GitOrbit", () => {
     await user.type(screen.getByLabelText("Commit message"), "Update server");
     await waitFor(() => expect(screen.getByRole("button", { name: "Commit" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Commit" }));
-    await waitFor(() => expect(native.action).toHaveBeenCalledWith("a", "C:/projects/api", "commit", [], "Update server"));
+    await waitFor(() => expect(native.commitReviewed).toHaveBeenCalledWith("a", "C:/projects/api", {reviewToken:"reviewed", message:"Update server", amend:false, signOff:false}));
   });
 });

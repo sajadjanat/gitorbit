@@ -230,6 +230,14 @@ pub fn outgoing_commit_files(
     {
         return Err("This commit is no longer in the outgoing list. Refresh and try again.".into());
     }
+    history_commit_files(git, repo, commit_hash)
+}
+
+pub fn history_commit_files(git: &Path, repo: &Path, commit_hash: &str) -> Result<Vec<CommitFile>, String> {
+    if !matches!(commit_hash.len(), 40 | 64) || !commit_hash.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err("Choose a valid commit from the history.".into());
+    }
+    if run(git, repo, &["cat-file", "-t", commit_hash])? != b"commit\n" { return Err("Choose a valid commit from the history.".into()); }
     let parent_line = String::from_utf8_lossy(&run(
         git,
         repo,
@@ -282,6 +290,15 @@ pub fn outgoing_commit_diff(
 ) -> Result<CommitDiff, String> {
     // Validate both the outgoing revision and literal file against Git's list.
     let files = outgoing_commit_files(git, repo, commit_hash)?;
+    commit_file_diff(git, repo, commit_hash, path, &files)
+}
+
+pub fn history_commit_diff(git: &Path, repo: &Path, commit_hash: &str, path: &str) -> Result<CommitDiff, String> {
+    let files = history_commit_files(git, repo, commit_hash)?;
+    commit_file_diff(git, repo, commit_hash, path, &files)
+}
+
+fn commit_file_diff(git: &Path, repo: &Path, commit_hash: &str, path: &str, files: &[CommitFile]) -> Result<CommitDiff, String> {
     let file = files.iter().find(|file| file.path == path)
         .ok_or("Choose a file from the selected commit.")?;
     let parents = run(git, repo, &["rev-list", "--parents", "-n", "1", commit_hash])?;
@@ -807,6 +824,71 @@ mod tests {
         let root = outgoing(&git, &local).unwrap();
         let diff = outgoing_commit_diff(&git, &local, &root.head, "root.txt").unwrap();
         assert!(diff.before_revision.is_none() && diff.text.contains("+root content"));
+    }
+    #[test]
+    fn history_commit_preview_reads_published_root_without_upstream_or_local_content() {
+        let (_root, git, local, _remote) = push_fixture();
+        let root_hash = String::from_utf8_lossy(&run(&git, &local, &["rev-parse", "HEAD"]).unwrap()).trim().to_owned();
+        fs::write(local.join("original.txt"), "local index\n").unwrap();
+        exec(&git, &local, &["add", "original.txt"]);
+        fs::write(local.join("original.txt"), "local working tree\n").unwrap();
+        let index_before = run(&git, &local, &["write-tree"]).unwrap();
+        let files = history_commit_files(&git, &local, &root_hash).unwrap();
+        assert_eq!(files.len(), 1); assert_eq!(files[0].path, "original.txt"); assert_eq!(files[0].status, "A");
+        let diff = history_commit_diff(&git, &local, &root_hash, "original.txt").unwrap();
+        assert!(diff.before_revision.is_none()); assert_eq!(diff.after_revision, root_hash);
+        assert!(diff.text.contains("+original")); assert!(!diff.text.contains("local index")); assert!(!diff.text.contains("local working tree"));
+        // The broader history reader must not weaken the push-list restriction.
+        assert!(outgoing_commit_files(&git, &local, &root_hash).is_err());
+        assert!(outgoing_commit_diff(&git, &local, &root_hash, "original.txt").is_err());
+        exec(&git, &local, &["branch", "--unset-upstream"]);
+        assert!(history_commit_diff(&git, &local, &root_hash, "original.txt").unwrap().text.contains("+original"));
+        assert_eq!(run(&git, &local, &["write-tree"]).unwrap(), index_before);
+        assert_eq!(fs::read_to_string(local.join("original.txt")).unwrap(), "local working tree\n");
+    }
+    #[test]
+    fn history_commit_preview_retains_published_rename_and_deletion_after_later_commits() {
+        let (_root, git, local, _remote) = push_fixture();
+        exec(&git, &local, &["mv", "original.txt", "renamed.txt"]);
+        action(&git, &local, "commit", &[], Some("Published rename")).unwrap();
+        let rename = String::from_utf8_lossy(&run(&git, &local, &["rev-parse", "HEAD"]).unwrap()).trim().to_owned();
+        exec(&git, &local, &["push", "-q", "origin", "HEAD:published"]);
+        let files = history_commit_files(&git, &local, &rename).unwrap();
+        assert_eq!(files.len(), 1); assert_eq!(files[0].path, "renamed.txt"); assert_eq!(files[0].original_path.as_deref(), Some("original.txt")); assert!(files[0].status.starts_with('R'));
+        assert!(outgoing_commit_files(&git, &local, &rename).is_err());
+        exec(&git, &local, &["rm", "renamed.txt"]);
+        action(&git, &local, "commit", &[], Some("Published deletion")).unwrap();
+        let deletion = String::from_utf8_lossy(&run(&git, &local, &["rev-parse", "HEAD"]).unwrap()).trim().to_owned();
+        exec(&git, &local, &["push", "-q", "origin", "HEAD:published"]);
+        let renamed = history_commit_diff(&git, &local, &rename, "renamed.txt").unwrap();
+        assert!(renamed.text.contains("rename from original.txt") && renamed.text.contains("rename to renamed.txt"));
+        let files = history_commit_files(&git, &local, &deletion).unwrap(); assert_eq!(files[0].status, "D");
+        let deleted = history_commit_diff(&git, &local, &deletion, "renamed.txt").unwrap();
+        assert_eq!(deleted.before_revision.as_deref(), Some(rename.as_str())); assert!(deleted.text.contains("+++ /dev/null") && deleted.text.contains("-original"));
+        assert!(outgoing_commit_diff(&git, &local, &deletion, "renamed.txt").is_err());
+        assert!(history_commit_diff(&git, &local, &deletion, "original.txt").is_err());
+    }
+    #[test]
+    fn history_commit_preview_uses_first_merge_parent_and_rejects_noncommit_objects_or_unlisted_paths() {
+        let (_root, git, local, _remote) = push_fixture();
+        exec(&git, &local, &["checkout", "-qb", "history-feature"]);
+        fs::write(local.join("[literal].txt"), "feature contents\n").unwrap();
+        action(&git, &local, "stage", &["[literal].txt".into()], None).unwrap();
+        action(&git, &local, "commit", &[], Some("Feature")).unwrap();
+        exec(&git, &local, &["checkout", "-q", "main"]);
+        exec(&git, &local, &["commit", "--allow-empty", "-qm", "Main before merge"]);
+        let parent = String::from_utf8_lossy(&run(&git, &local, &["rev-parse", "HEAD"]).unwrap()).trim().to_owned();
+        exec(&git, &local, &["merge", "--no-ff", "-qm", "Published merge", "history-feature"]);
+        let merged = String::from_utf8_lossy(&run(&git, &local, &["rev-parse", "HEAD"]).unwrap()).trim().to_owned();
+        exec(&git, &local, &["push", "-q", "origin", "HEAD:published"]);
+        let files = history_commit_files(&git, &local, &merged).unwrap(); assert_eq!(files.len(), 1); assert_eq!(files[0].path, "[literal].txt");
+        let diff = history_commit_diff(&git, &local, &merged, "[literal].txt").unwrap();
+        assert_eq!(diff.before_revision.as_deref(), Some(parent.as_str())); assert!(diff.text.contains("+feature contents"));
+        let tree = String::from_utf8_lossy(&run(&git, &local, &["rev-parse", "HEAD^{tree}"]).unwrap()).trim().to_owned();
+        let blob = String::from_utf8_lossy(&run(&git, &local, &["rev-parse", "HEAD:original.txt"]).unwrap()).trim().to_owned();
+        for revision in ["--help", "HEAD", tree.as_str(), blob.as_str()] { assert!(history_commit_files(&git, &local, revision).is_err()); }
+        for path in ["../outside", ":(glob)*", "original.txt", ".git/config"] { assert!(history_commit_diff(&git, &local, &merged, path).is_err()); }
+        assert!(outgoing_commit_files(&git, &local, &merged).is_err());
     }
     #[test]
     fn push_refuses_a_changed_branch_tip_after_review() {

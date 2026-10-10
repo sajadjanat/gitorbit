@@ -11,8 +11,37 @@ mod auth;
 mod sync;
 #[path = "../git_tools.rs"]
 mod git_tools;
+#[path = "../commit_options.rs"]
+mod commit_options;
+#[path = "../file_history.rs"]
+mod file_history;
+#[path = "../remotes.rs"]
+mod remotes;
+#[path = "../partial_stage.rs"]
+mod partial_stage;
+#[path = "../stash_tools.rs"]
+mod stash_tools;
+#[path = "../shelves.rs"]
+mod shelves;
+#[path = "../interactive_rebase.rs"]
+mod interactive_rebase;
+#[path = "../repository_setup.rs"]
+mod repository_setup;
+#[path = "../tag_tools.rs"]
+mod tag_tools;
+#[path = "../ignored_files.rs"]
+mod ignored_files;
+#[path = "../delete_files.rs"]
+mod delete_files;
+#[path = "../patch_tools.rs"]
+mod patch_tools;
+#[path = "../revision_tree.rs"]
+mod revision_tree;
+#[path = "../submodules.rs"]
+mod submodules;
 use git::{find_git, scan, Workspace};
 fn main() {
+    if let Some(code) = interactive_rebase::editor_entry() { std::process::exit(code); }
     let args: Vec<_> = std::env::args().collect();
     if args.get(1).is_some_and(|a| a == "--history") {
         let result = (|| {

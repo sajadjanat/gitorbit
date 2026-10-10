@@ -1,7 +1,38 @@
 import { gitToolsMessages } from "./git-tools-messages";
+import { commitOptionsMessages } from "./commit-options-messages";
+import { fileHistoryMessages } from "./file-history-messages";
+import { remotesMessages } from "./remotes-messages";
+import { partialStageMessages } from "./partial-stage-messages";
+import { repositorySetupMessages } from "./repository-setup-messages";
+import { interactiveRebaseMessages } from "./interactive-rebase-messages";
+import { stashToolsMessages } from "./stash-tools-messages";
+import { tagMessages } from "./tag-messages";
+import { ignoredFilesMessages } from "./ignored-files-messages";
+import { patchToolsMessages } from "./patch-tools-messages";
+import { submodulesMessages } from "./submodules-messages";
+import { revisionBrowserMessages } from "./revision-browser-messages";
+import { shelfOverviewMessages } from "./shelf-overview-messages";
+import { simplifyMessages } from "./simplify-messages";
+import { deleteFilesMessages } from "./delete-files-messages";
 // English source keys provide readable fallback text.
 export const messages: Record<string, {fa: string; ar: string; zh: string}> = {
   ...gitToolsMessages,
+  ...commitOptionsMessages,
+  ...fileHistoryMessages,
+  ...remotesMessages,
+  ...partialStageMessages,
+  ...repositorySetupMessages,
+  ...interactiveRebaseMessages,
+  ...stashToolsMessages,
+  ...tagMessages,
+  ...ignoredFilesMessages,
+  ...patchToolsMessages,
+  ...submodulesMessages,
+  ...revisionBrowserMessages,
+  ...shelfOverviewMessages,
+  ...simplifyMessages,
+  ...deleteFilesMessages,
+  "Loading commits…": {fa:"در حال دریافت کامیت‌ها…",ar:"جارٍ تحميل الالتزامات…",zh:"正在加载提交…"},
   "Your Git credentials are missing or expired. Sign in, then retry fetching.": {fa:"اعتبارنامه گیت موجود نیست یا منقضی شده. وارد شوید و دوباره فچ کنید.",ar:"بيانات اعتماد Git مفقودة أو منتهية. سجّل الدخول ثم أعد الجلب.",zh:"Git 凭据缺失或已过期。请登录后重试获取。"},
   "Cancel": {fa:"انصراف", ar:"إلغاء", zh:"取消"},
   "Sign-in completed. Retry fetching to check incoming commits.": {fa:"ورود انجام شد. برای بررسی کامیت‌های ورودی، فچ را دوباره بزنید.",ar:"اكتمل الدخول. أعد الجلب للتحقق من الالتزامات الواردة.",zh:"登录完成。请重试获取以检查传入提交。"},

@@ -31,6 +31,8 @@ Keep several workspaces open as tabs. They all continue monitoring in the backgr
 
 ## Features
 
+The development branch also includes an expanded Git workflow. See the [capability matrix and remaining work](docs/phpstorm-git-parity.md) for the exact scope, and the [REA investigation guide](docs/rea.md) for the reference-analysis setup. These source changes are separate from the latest downloadable release.
+
 | Feature | What it does |
 | --- | --- |
 | **Workspace tabs** | Add multiple folders, switch between them, and restore your tabs when the app reopens. |
