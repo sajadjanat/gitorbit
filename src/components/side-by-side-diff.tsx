@@ -1,5 +1,7 @@
 import { t } from "@/lib/i18n";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {MediaPreview} from "./media-preview";
+import {type MediaDiff} from "@/lib/native";
 
 type DiffLine = { number: number; text: string };
 
@@ -149,7 +151,11 @@ function CodeCell({
   );
 }
 
-export function SideBySideDiff({
+export function SideBySideDiff(props: {text:string;staged:boolean;truncated:boolean;newFile?:boolean;revisions?:{before:string;after:string};media?:MediaDiff|null}) {
+  if(props.media) return <MediaPreview media={props.media} beforeLabel={props.revisions?.before??(props.staged?"HEAD":t("Index"))} afterLabel={props.revisions?.after??(props.staged?t("Index · staged"):t("Working tree"))}/>;
+  return <TextDiff {...props}/>;
+}
+function TextDiff({
   text,
   staged,
   truncated,

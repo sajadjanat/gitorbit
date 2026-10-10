@@ -10,6 +10,13 @@ const repository: Repository = {path: "/repo", name: "repo", branch: "main", ups
 const info: CommitOptionsInfo = {reviewToken: "reviewed", head: "a".repeat(40), previousMessage: "Previous subject\n\nFull previous body", canAmend: true, blockedReason: null, staged: 0, published: true, signOffIdentity: "Test <test@example.com>",defaultAuthorName:"Current Author",defaultAuthorEmail:"current@example.com",previousAuthorName:"Original Author",previousAuthorEmail:"original@example.com",signingEnabled:false,signingFormat:"openpgp",signingKey:null};
 const props = {workspaceId: "w", path: "/repo", blocked: false, onBusyChange: vi.fn(), onChanged: vi.fn()};
 beforeEach(() => {vi.resetAllMocks(); localStorage.clear(); setLanguage("en"); vi.mocked(native.changes).mockResolvedValue(repository); vi.mocked(native.commitOptions).mockResolvedValue(info); vi.mocked(native.commitReviewed).mockResolvedValue("Amended commit abcdef.");});
+it("previews an unversioned image even when there is no text diff",async()=>{
+  vi.mocked(native.changes).mockResolvedValue({...repository,changed:1,untracked:1,files:[{path:"assets/photo.png",originalPath:null,status:"??"}]});
+  vi.mocked(native.diff).mockResolvedValue({text:"",truncated:false,media:{before:null,after:{path:"assets/photo.png",kind:"image",mime:"image/png",size:100,dataUrl:"data:image/png;base64,cGhvdG8=",unavailable:null}}});
+  render(<VersionControl {...props}/>);fireEvent.click(await screen.findByRole("button",{name:/photo\.png/}));
+  expect(await screen.findByRole("img",{name:"assets/photo.png"})).toBeInTheDocument();expect(screen.queryByText("No text difference in this view.")).not.toBeInTheDocument();
+  expect(native.diff).toHaveBeenCalledWith("w","/repo","assets/photo.png",false);expect(native.action).not.toHaveBeenCalled();
+});
 async function option(user: ReturnType<typeof userEvent.setup>, name: string) {
   await user.click(screen.getByRole("button", {name: t("Commit options")}));
   await user.click(await screen.findByRole("menuitemcheckbox", {name: t(name)}));

@@ -5,6 +5,8 @@ mod git;
 mod history;
 #[path = "../version_control.rs"]
 mod version_control;
+#[path = "../file_preview.rs"]
+mod file_preview;
 #[path = "../auth.rs"]
 mod auth;
 #[path = "../sync.rs"]

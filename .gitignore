@@ -24,3 +24,6 @@ dist-desktop/
 *.njsproj
 *.sln
 *.sw?
+
+# Offline PDF preview support, copied from pdfjs-dist before dev/build.
+/public/pdfjs/

@@ -95,7 +95,10 @@ export interface CommitDiff {
   truncated: boolean;
   beforeRevision: string | null;
   afterRevision: string;
+  media?: MediaDiff | null;
 }
+export interface FilePreview {path:string;kind:"image"|"pdf"|"audio"|"video"|"binary";mime:string;size:number;dataUrl:string|null;unavailable:string|null}
+export interface MediaDiff {before:FilePreview|null;after:FilePreview|null}
 export interface AuthenticationInfo {
   target: string;
   host: string;
@@ -139,7 +142,7 @@ export interface IgnoredInventory {files:string[];hasMore:boolean}
 export interface PatchExport {text:string;reviewToken:string;files:string[]}
 export interface PatchPreview {reviewToken:string;patchPath:string;files:string[];stat:string;summary:string;canApply:boolean;error:string|null}
 export interface RevisionTree {revision:string;directory:string;entries:{name:string;path:string;kind:string;hash:string;size:number|null}[];truncated:boolean}
-export interface RevisionBlob {revision:string;path:string;text:string|null;binary:boolean|null;truncated:boolean;size:number;kind:string}
+export interface RevisionBlob {revision:string;path:string;text:string|null;binary:boolean|null;truncated:boolean;size:number;kind:string;preview?:FilePreview|null}
 export interface GitSubmodulesState {reviewToken:string;modules:{name:string;path:string;url:string;status:string;expectedHead:string;head:string;dirty:boolean;blockedReason:string|null}[];warnings:string[]}
 export interface Shelf {id:string;hash:string;title:string;timestamp:number}
 export interface Shelves {reviewToken:string;entries:Shelf[]}
@@ -220,7 +223,7 @@ export const native = {
   cancelSignIn: (workspaceId: string, path: string, sessionId: string) => invoke<void>("cancel_git_sign_in", { workspaceId, path, sessionId }),
   signInSetup: () => invoke<void>("open_git_sign_in_setup"),
   changes: (workspaceId: string, path: string) => invoke<Repository>("repository_changes", { workspaceId, path }),
-  diff: (workspaceId: string, path: string, file: string, staged: boolean) => invoke<{text: string; truncated: boolean}>("repository_diff", { workspaceId, path, file, staged }),
+  diff: (workspaceId: string, path: string, file: string, staged: boolean) => invoke<{text: string; truncated: boolean; media?:MediaDiff|null}>("repository_diff", { workspaceId, path, file, staged }),
   action: (workspaceId: string, path: string, action: "stage" | "unstage" | "commit" | "pull" | "create-branch", paths: string[] = [], message: string | null = null) => invoke<string>("repository_action", { workspaceId, path, action, paths, message }),
 };
 

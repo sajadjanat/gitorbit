@@ -75,6 +75,34 @@ data.commitFiles = [
   {path: 'src/components/workspace-tabs.tsx', originalPath: null, status: 'A'},
   {path: 'src/lib/preferences.ts', originalPath: 'src/lib/settings.ts', status: 'R100'},
 ];
+// Opt-in media fixtures exercise the actual preview components without Git writes.
+data.mediaFiles = [
+  {path:'assets/workspace-preview.png',originalPath:null,status:' M'},
+  {path:'docs/getting-started.pdf',originalPath:null,status:'??'},
+  {path:'assets/orbit-mark.svg',originalPath:null,status:'??'},
+  {path:'app/Http/Controllers/TicketController.php',originalPath:null,status:' M'},
+  {path:'resources/views/show.blade.php',originalPath:null,status:' M'},
+  {path:'AGENTS.md',originalPath:null,status:' M'},
+  {path:'content/catalog.json',originalPath:null,status:'M '},
+  {path:'src/App.tsx',originalPath:null,status:' M'},
+  {path:'backup/archive.zip',originalPath:null,status:'??'},
+];
+const sampleImage = accent => `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="580" viewBox="0 0 960 580"><rect x="40" y="40" width="880" height="500" rx="28" fill="#14171e"/><circle cx="84" cy="80" r="6" fill="#f87171"/><circle cx="106" cy="80" r="6" fill="#fbbf24"/><circle cx="128" cy="80" r="6" fill="#4ade80"/><text x="80" y="146" fill="white" font-family="sans-serif" font-size="32" font-weight="600">GitOrbit</text><text x="80" y="180" fill="#a1a1aa" font-family="sans-serif" font-size="17">Your workspace, at a glance.</text>${[0,1,2,3].map((row)=>`<rect x="80" y="${210+row*64}" width="800" height="48" rx="10" fill="#222630"/><rect x="96" y="${225+row*64}" width="${160+row*35}" height="14" rx="7" fill="#737b8d"/><circle cx="840" cy="${234+row*64}" r="7" fill="${row===1?accent:'#4ade80'}"/>`).join('')}<rect x="80" y="488" width="128" height="12" rx="6" fill="${accent}"/></svg>`;
+data.mediaImages=[sampleImage('#fbbf24'),sampleImage('#818cf8')];
+function samplePdf() {
+  const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>'];
+  for(let index=0;index<2;index++) {
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 480 320] /Resources << /Font << /F1 7 0 R >> >> /Contents ${4+index*2} 0 R >>`);
+    const text=`BT /F1 24 Tf 40 250 Td (GitOrbit - page ${index+1}) Tj /F1 14 Tf 0 -50 Td (Preview documentation without leaving your workspace.) Tj ET`;
+    objects.push(`<< /Length ${Buffer.byteLength(text)} >>\nstream\n${text}\nendstream`);
+  }
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  let output='%PDF-1.4\n';const offsets=[0];
+  objects.forEach((object,index)=>{offsets.push(Buffer.byteLength(output));output+=`${index+1} 0 obj\n${object}\nendobj\n`;});
+  const xref=Buffer.byteLength(output);output+=`xref\n0 ${objects.length+1}\n0000000000 65535 f \n`+offsets.slice(1).map(offset=>`${String(offset).padStart(10,'0')} 00000 n \n`).join('')+`trailer\n<< /Size ${objects.length+1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return 'data:application/pdf;base64,'+Buffer.from(output).toString('base64');
+}
+data.mediaPdf=samplePdf();
 await mkdir('.dev', { recursive: true })
 await writeFile('.dev/readme-data.json', JSON.stringify(data, null, 2))
 await writeFile('.dev/readme-preview.html', `<!doctype html>
@@ -82,6 +110,21 @@ await writeFile('.dev/readme-preview.html', `<!doctype html>
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 const data = await (await fetch('/.dev/readme-data.json')).json();
+const mediaDemo=new URLSearchParams(location.search).has('media');
+const mediaPreviews={};
+if(mediaDemo) {
+  const pngs=await Promise.all(data.mediaImages.map(async svg=>{
+    const image=new Image();image.src='data:image/svg+xml;base64,'+btoa(svg);await image.decode();
+    const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;canvas.getContext('2d').drawImage(image,0,0);return canvas.toDataURL('image/png');
+  }));
+  const preview=(path,kind,mime,dataUrl,size=2048)=>({path,kind,mime,dataUrl,size,unavailable:null});
+  mediaPreviews['assets/workspace-preview.png']={before:preview('assets/workspace-preview.png','image','image/png',pngs[0]),after:preview('assets/workspace-preview.png','image','image/png',pngs[1])};
+  mediaPreviews['docs/getting-started.pdf']={before:null,after:preview('docs/getting-started.pdf','pdf','application/pdf',data.mediaPdf)};
+  mediaPreviews['assets/orbit-mark.svg']={before:null,after:preview('assets/orbit-mark.svg','image','image/svg+xml','data:image/svg+xml;base64,'+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220"><circle cx="160" cy="110" r="65" fill="#171717" stroke="#fb923c" stroke-width="12"/><ellipse cx="160" cy="110" rx="145" ry="26" fill="none" stroke="#fbbf24" stroke-width="10" transform="rotate(-25 160 110)"/></svg>'))};
+  mediaPreviews['backup/archive.zip']={before:null,after:{...preview('backup/archive.zip','binary','application/octet-stream',null,83240),unavailable:'No built-in preview for this file type.'}};
+  Object.assign(data.snapshots.studio.repositories[0],{files:data.mediaFiles,changed:9,staged:1,unstaged:5,untracked:3});
+  data.commitFiles=data.mediaFiles.map(file=>({...file,status:file.status==='??'?'A':'M'}));
+}
 if (new URLSearchParams(location.search).get('git') === 'missing') { data.environment.gitVersion = null; data.environment.gitPath = null; }
 window.isTauri = true;
 window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
@@ -140,11 +183,13 @@ window.__TAURI_INTERNALS__ = {
   if(command==='cancel_git_sign_in' || command==='open_git_sign_in_setup') return null;
   if(command==='repository_commit_files' || command==='repository_history_commit_files') return data.commitFiles;
   if(['repository_commit_diff','repository_history_commit_diff','repository_file_history_diff','repository_stash_diff','repository_shelf_diff'].includes(command)) {
+    if(mediaPreviews[args.file])return {beforeRevision:'b1'.padEnd(40,'0'),afterRevision:'a1'.padEnd(40,'0'),text:'',truncated:false,media:mediaPreviews[args.file]};
     const file = data.commitFiles.find(file => file.path === args.file) || {path:args.file,status:'M'};
     const text = file.status === 'A' ? 'diff --git a/'+args.file+' b/'+args.file+'\\nnew file mode 100644\\n--- /dev/null\\n+++ b/'+args.file+'\\n@@ -0,0 +1,3 @@\\n+export function WorkspaceTabs() {\\n+  return <nav aria-label="Workspaces" />;\\n+}' : file.originalPath ? 'diff --git a/'+file.originalPath+' b/'+file.path+'\\nsimilarity index 100%\\nrename from '+file.originalPath+'\\nrename to '+file.path : 'diff --git a/'+args.file+' b/'+args.file+'\\n--- a/'+args.file+'\\n+++ b/'+args.file+'\\n@@ -1,3 +1,4 @@\\n export function refreshWorkspace() {\\n-  return scan(activeWorkspace);\\n+  return Promise.all(workspaces.map(scan));\\n+  // Keep every workspace up to date.\\n }';
     return { beforeRevision: args.commitHash === data.outgoing.head ? 'b1'.padEnd(40, '0') : 'c1'.padEnd(40, '0'), afterRevision: args.commitHash||args.stashHash||'ab'.padEnd(40,'0'), text, truncated: false };
   }
   if(command==='repository_changes') return data.snapshots.studio.repositories[0];
+  if(command==='repository_diff'&&mediaPreviews[args.file])return {text:'',truncated:false,media:mediaPreviews[args.file]};
   if(command==='repository_diff') return { text: 'diff --git a/'+args.file+' b/'+args.file+'\\n--- a/'+args.file+'\\n+++ b/'+args.file+'\\n@@ -1,4 +1,5 @@\\n export function refreshWorkspace() {\\n-  return scan(activeWorkspace);\\n+  return Promise.all(workspaces.map(scan));\\n+  // Keep every workspace up to date.\\n }', truncated: false };
   if(command==='save_workspaces') {roots=args.workspaces; return null;}
   if(command==='plugin:event|listen') return ++next;

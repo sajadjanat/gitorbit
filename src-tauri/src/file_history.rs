@@ -19,7 +19,7 @@ pub struct FileCommit {
 pub struct FileHistory { pub commits: Vec<FileCommit>, pub has_more: bool, pub shallow: bool }
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FileDiff { pub text: String, pub truncated: bool, pub before_revision: Option<String>, pub after_revision: String }
+pub struct FileDiff { pub text: String, pub truncated: bool, pub before_revision: Option<String>, pub after_revision: String, pub media: Option<crate::file_preview::MediaDiff> }
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlameLine {
@@ -126,7 +126,15 @@ pub fn diff(git: &Path, repo: &Path, file: &str, commit_hash: &str) -> Result<Fi
     else { args.extend(["diff-tree", "--root", "--no-commit-id", "-r", "-p", "--no-ext-diff", "--no-textconv", "--no-color", &hash]); }
     args.extend(["--", file]); if let Some(old) = &previous { args.push(old); }
     let mut bytes = run(git, repo, &args)?; let truncated = bytes.len() > MAX_DIFF; bytes.truncate(MAX_DIFF);
-    Ok(FileDiff { text: String::from_utf8_lossy(&bytes).into_owned(), truncated, before_revision: parent, after_revision: hash })
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    let media = if crate::file_preview::supported(file) || text.contains("Binary files") {
+        use crate::file_preview::{pair, Source};
+        // Resolve renamed files from the complete commit list, independent of HEAD.
+        let files = crate::version_control::history_commit_files(git, repo, &hash)?;
+        let selected = files.iter().find(|f| f.path == file || f.original_path.as_deref() == Some(file)).ok_or("Choose a file from the selected commit.")?;
+        Some(pair(git, repo, parent.as_deref().map(|p| Source::Revision(p, selected.original_path.as_deref().unwrap_or(&selected.path))).unwrap_or(Source::Empty), Source::Revision(&hash, &selected.path))?)
+    } else { None };
+    Ok(FileDiff { text, truncated, before_revision: parent, after_revision: hash, media })
 }
 
 fn unquote_path(value: &str) -> String {

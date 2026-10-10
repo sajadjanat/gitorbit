@@ -9,7 +9,7 @@ pub struct RevisionEntry {pub name:String,pub path:String,pub kind:String,pub ha
 #[derive(Debug,Serialize)]
 pub struct RevisionTree {pub revision:String,pub directory:String,pub entries:Vec<RevisionEntry>,pub truncated:bool}
 #[derive(Debug,Serialize)]
-pub struct RevisionBlob {pub revision:String,pub path:String,pub text:Option<String>,pub binary:Option<bool>,pub truncated:bool,pub size:usize,pub kind:String}
+pub struct RevisionBlob {pub revision:String,pub path:String,pub text:Option<String>,pub binary:Option<bool>,pub truncated:bool,pub size:usize,pub kind:String,pub preview:Option<crate::file_preview::FilePreview>}
 fn valid_path(path:&str,allow_root:bool)->Result<(),String>{
     if allow_root&&path.is_empty(){return Ok(());}
     if path.is_empty()||path.len()>4096||path.contains(['\0','\\',':'])||path.starts_with('/')
@@ -49,11 +49,16 @@ pub fn blob(git:&Path,repo:&Path,revision:&str,file:&str)->Result<RevisionBlob,S
     let entries=parse_entries(&bytes,"")?;let entry=entries.into_iter().find(|entry|entry.path==file).ok_or("This file is not present in the selected revision.")?;
     if entry.kind=="directory"||entry.kind=="submodule"{return Err("Choose a file from the selected revision.".into());}
     let size=entry.size.ok_or("Git returned an invalid revision file size.")?;
-    if size>MAX_BLOB{return Ok(RevisionBlob{revision:revision.into(),path:file.into(),text:None,binary:None,truncated:true,size,kind:entry.kind});}
+    if entry.kind=="file" && crate::file_preview::supported(file) {
+        let preview=crate::file_preview::read(git,repo,crate::file_preview::Source::Revision(revision,file))?;
+        return Ok(RevisionBlob{revision:revision.into(),path:file.into(),text:None,binary:Some(true),truncated:false,size,kind:entry.kind,preview});
+    }
+    if size>MAX_BLOB{return Ok(RevisionBlob{revision:revision.into(),path:file.into(),text:None,binary:None,truncated:true,size,kind:entry.kind,preview:None});}
     // Read the immutable blob object; never open the working-tree path or follow links.
     let content=run(git,repo,&["cat-file","blob",&entry.hash])?;
     let binary=content.contains(&0)||std::str::from_utf8(&content).is_err();
-    Ok(RevisionBlob{revision:revision.into(),path:file.into(),text:if binary{None}else{Some(String::from_utf8(content).map_err(|_|"Could not decode revision text.")?)},binary:Some(binary),truncated:false,size,kind:entry.kind})
+    let preview=if binary && entry.kind=="file" {crate::file_preview::read(git,repo,crate::file_preview::Source::Revision(revision,file))?}else{None};
+    Ok(RevisionBlob{revision:revision.into(),path:file.into(),text:if binary{None}else{Some(String::from_utf8(content).map_err(|_|"Could not decode revision text.")?)},binary:Some(binary),truncated:false,size,kind:entry.kind,preview})
 }
 
 #[cfg(test)]mod tests{

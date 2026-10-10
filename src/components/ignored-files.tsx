@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import {FileIcon} from "./file-icon";
 import { EyeOff, LoaderCircle, RefreshCw } from "lucide-react";
 import { native, type IgnoreFilesInfo, type IgnoredInventory } from "@/lib/native";
 import { t, number } from "@/lib/i18n";
@@ -69,7 +70,7 @@ export function ShowIgnored({workspaceId, path, blocked = false}: {workspaceId: 
       {state && <>
         <p className="text-xs text-muted-foreground">{t("{count} ignored files", {count: state.files.length})}</p>
         {state.hasMore && <Alert><AlertDescription>{t("Showing the first 2000 ignored files. More files are excluded by Git.")}</AlertDescription></Alert>}
-        {state.files.length ? <div className="flex-1 min-h-0 overflow-auto rounded-md border p-3 space-y-1" aria-label={t("Ignored file list")}>{state.files.map((file, index) => <div key={file} className="flex gap-2 text-xs"><span className="text-muted-foreground min-w-8 text-end shrink-0">{number(index + 1)}</span><code dir="ltr" className="break-all">{file}</code></div>)}</div> : <p className="text-xs text-muted-foreground">{t("No ignored untracked files were found.")}</p>}
+        {state.files.length ? <div className="flex-1 min-h-0 overflow-auto rounded-md border p-3 space-y-1" aria-label={t("Ignored file list")}>{state.files.map((file, index) => <div key={file} className="flex gap-2 text-xs"><span className="text-muted-foreground min-w-8 text-end shrink-0">{number(index + 1)}</span><FileIcon path={file}/><code dir="ltr" className="break-all">{file}</code></div>)}</div> : <p className="text-xs text-muted-foreground">{t("No ignored untracked files were found.")}</p>}
       </>}
       <DialogFooter><Button variant="outline" disabled={loading} onClick={() => setReload((value) => value + 1)}><RefreshCw className="size-3.5" />{t("Refresh")}</Button><Button variant="outline" onClick={() => setOpen(false)}>{t("Close")}</Button></DialogFooter>
     </DialogContent>

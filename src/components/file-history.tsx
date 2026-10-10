@@ -82,7 +82,7 @@ export function FileHistory({ workspaceId, path, file, blocked = false, open:con
           </aside>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <TabsContent value="history" className="m-0 flex min-h-0 min-w-0 flex-1 flex-col">
-              {!selected ? message("Choose a commit to inspect its changes.") : detailError ? message(detailError, true) : diff ? <SideBySideDiff key={`${selected.hash}:${selected.path}`} text={diff.text} truncated={diff.truncated} staged={false} revisions={{before: diff.beforeRevision?.slice(0,8) ?? "/dev/null", after: diff.afterRevision.slice(0,8)}} /> : message("Loading diff…")}
+              {!selected ? message("Choose a commit to inspect its changes.") : detailError ? message(detailError, true) : diff ? <SideBySideDiff media={diff.media} key={`${selected.hash}:${selected.path}`} text={diff.text} truncated={diff.truncated} staged={false} revisions={{before: diff.beforeRevision?.slice(0,8) ?? "/dev/null", after: diff.afterRevision.slice(0,8)}} /> : message("Loading diff…")}
             </TabsContent>
             <TabsContent value="annotate" className="m-0 flex min-h-0 min-w-0 flex-1 flex-col">
               <p className="shrink-0 border-b px-3 py-2 text-xs text-muted-foreground">{text("Annotations show the selected committed revision; local edits are excluded.")}</p>

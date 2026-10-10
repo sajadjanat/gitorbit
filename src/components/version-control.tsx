@@ -10,7 +10,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { SideBySideDiff } from "@/components/side-by-side-diff";
-import { native, type ChangedFile, type Repository, type CommitOptionsInfo, type CommitOptionsRequest, type GitToolAction } from "@/lib/native";
+import {FileIcon} from "./file-icon";
+import { native, type ChangedFile, type Repository, type CommitOptionsInfo, type CommitOptionsRequest, type GitToolAction, type MediaDiff } from "@/lib/native";
 import { FileGitAction } from "@/components/rollback-files";
 import { ConflictEditor } from "@/components/conflict-editor";
 import { FileHistory } from "@/components/file-history";
@@ -61,7 +62,7 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
   const [moreFileActions, setMoreFileActions] = useState(false);
   const [amendReview, setAmendReview] = useState<{request: CommitOptionsRequest; info: CommitOptionsInfo} | null>(null);
   const [preview, setPreview] = useState<{ file: string; staged: boolean; unversioned: boolean } | null>(null);
-  const [diff, setDiff] = useState<{ text: string; truncated: boolean } | null>(null);
+  const [diff, setDiff] = useState<{ text: string; truncated: boolean; media?:MediaDiff|null } | null>(null);
   const [diffError, setDiffError] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<Group>>(new Set());
   const [contextRollback,setContextRollback]=useState<string[]|null>(null);
@@ -241,7 +242,7 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
                 return <ContextActions key={key} label={file.path} actions={fileActions(file,group)}><div className={`ms-5 flex items-center gap-2 px-1 h-7 rounded-sm text-xs transition-colors duration-150 motion-reduce:transition-none ${preview?.file === file.path && preview.staged === (group === "staged") ? "bg-accent" : "hover:bg-muted/40"}`}>
                   <Checkbox aria-label={t("Select {group} {path}", {group: t(group), path: file.path})} disabled={locked} checked={checked.has(key)} onCheckedChange={(value) => toggle([key], value === true)} />
                   <button className="flex gap-2 items-center flex-1 min-w-0 text-start h-full focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setPreview({ file: file.path, staged: group === "staged", unversioned: group === "unversioned" })} title={file.originalPath ? `${file.originalPath} → ${file.path}` : file.path}>
-                    <FileCode2 className={`size-3.5 shrink-0 ${group === "staged" ? "text-emerald-500" : group === "unversioned" ? "text-red-400" : "text-blue-500"}`} />
+                    <FileIcon path={file.path}/>
                     <span className={`truncate shrink-0 max-w-[60%] ${group === "unversioned" ? "text-red-400" : ""}`}>{file.path.slice(slash + 1)}</span><span className="truncate text-muted-foreground text-[10px]">{slash >= 0 ? file.path.slice(0, slash) : ""}</span>
                     <code className={`ms-auto shrink-0 text-[10px] ${group === "unversioned" ? "text-red-400" : "text-muted-foreground"}`}>{file.status.trim()}</code>
                   </button>
@@ -316,9 +317,9 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
       </div>
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         {preview ? <>
-          <div className="px-4 py-2 border-b text-xs flex flex-wrap gap-2 items-center"><span dir="ltr" className="font-mono truncate flex-1 min-w-20" title={preview.file}>{preview.file}</span><FileHistory workspaceId={workspaceId} path={path} file={preview.file} blocked={locked}/>{!preview.unversioned && <PartialStage workspaceId={workspaceId} path={path} file={preview.file} staged={preview.staged} blocked={locked} onBusyChange={onBusyChange} onChanged={hunksChanged}/>}<span className="text-muted-foreground ms-auto shrink-0">{preview.staged ? t("HEAD → Index") : t("Index → Working tree")}</span></div>
+          <div className="px-4 py-2 border-b text-xs flex flex-wrap gap-2 items-center"><span dir="ltr" className="font-mono truncate flex-1 min-w-20" title={preview.file}>{preview.file}</span><FileHistory workspaceId={workspaceId} path={path} file={preview.file} blocked={locked}/>{!preview.unversioned && !diff?.media && <PartialStage workspaceId={workspaceId} path={path} file={preview.file} staged={preview.staged} blocked={locked} onBusyChange={onBusyChange} onChanged={hunksChanged}/>}<span className="text-muted-foreground ms-auto shrink-0">{preview.staged ? t("HEAD → Index") : t("Index → Working tree")}</span></div>
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden" aria-label={t("File diff")}>
-            {diffError ? <p className="px-4 py-3 text-destructive">{t(diffError)}</p> : !diff ? <p className="px-4 py-3 text-muted-foreground">{t("Loading diff…")}</p> : !diff.text ? <p className="px-4 py-3 text-muted-foreground">{t("No text difference in this view.")}</p> : <SideBySideDiff text={diff.text} staged={preview.staged} newFile={preview.unversioned} truncated={diff.truncated} />}
+            {diffError ? <p className="px-4 py-3 text-destructive">{t(diffError)}</p> : !diff ? <p className="px-4 py-3 text-muted-foreground">{t("Loading diff…")}</p> : !diff.text && !diff.media ? <p className="px-4 py-3 text-muted-foreground">{t("No text difference in this view.")}</p> : <SideBySideDiff media={diff.media} text={diff.text} staged={preview.staged} newFile={preview.unversioned} truncated={diff.truncated} />}
           </div>
         </> : <div className="flex-1 grid place-items-center p-6 text-xs text-muted-foreground text-center"><div><FileCode2 className="size-6 mx-auto mb-3 opacity-50" />{t("Select a file to review its diff.")}<br /><span className="block mt-2">{t("Stage your selection, then commit the staged files.")}</span></div></div>}
       </div>

@@ -44,6 +44,7 @@ pub fn changes(git: &Path, repo: &Path) -> Result<Repository, String> {
 pub struct Diff {
     pub text: String,
     pub truncated: bool,
+    pub media: Option<crate::file_preview::MediaDiff>,
 }
 
 #[derive(Serialize)]
@@ -53,6 +54,7 @@ pub struct CommitDiff {
     pub truncated: bool,
     pub before_revision: Option<String>,
     pub after_revision: String,
+    pub media: Option<crate::file_preview::MediaDiff>,
 }
 
 #[derive(Serialize)]
@@ -315,7 +317,12 @@ fn commit_file_diff(git: &Path, repo: &Path, commit_hash: &str, path: &str, file
     const LIMIT: usize = 512 * 1024;
     let truncated = bytes.len() > LIMIT;
     bytes.truncate(LIMIT);
-    Ok(CommitDiff { text: String::from_utf8_lossy(&bytes).into_owned(), truncated, before_revision: parent, after_revision: commit_hash.to_owned() })
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    let media = if crate::file_preview::supported(path) || text.contains("Binary files") {
+        use crate::file_preview::{pair, Source};
+        Some(pair(git, repo, parent.as_deref().map(|p| Source::Revision(p, file.original_path.as_deref().unwrap_or(path))).unwrap_or(Source::Empty), Source::Revision(commit_hash, path))?)
+    } else { None };
+    Ok(CommitDiff { text, truncated, before_revision: parent, after_revision: commit_hash.to_owned(), media })
 }
 
 fn parse_name_status(bytes: &[u8]) -> Result<Vec<CommitFile>, String> {
@@ -451,6 +458,10 @@ pub fn diff(git: &Path, repo: &Path, path: &str, staged: bool) -> Result<Diff, S
         .ok_or("File is no longer changed. Refresh the list.")?;
     const LIMIT: usize = 512 * 1024;
     if file.status == "??" {
+        if crate::file_preview::supported(path) {
+            let media = crate::file_preview::pair(git, repo, crate::file_preview::Source::Empty, crate::file_preview::Source::Working(path))?;
+            return Ok(Diff {text: String::new(), truncated: false, media: Some(media)});
+        }
         let full = repo.join(path);
         let meta = fs::symlink_metadata(&full).map_err(|e| e.to_string())?;
         if meta.file_type().is_symlink() {
@@ -460,6 +471,7 @@ pub fn diff(git: &Path, repo: &Path, path: &str, staged: bool) -> Result<Diff, S
                     fs::read_link(full).map_err(|e| e.to_string())?.display()
                 ),
                 truncated: false,
+                media: None,
             });
         }
         let mut bytes = vec![];
@@ -481,7 +493,10 @@ pub fn diff(git: &Path, repo: &Path, path: &str, staged: bool) -> Result<Diff, S
                     .collect::<String>()
             )
         };
-        return Ok(Diff { text, truncated });
+        let media = if crate::file_preview::supported(path) || bytes.contains(&0) || std::str::from_utf8(&bytes).is_err() {
+            Some(crate::file_preview::pair(git, repo, crate::file_preview::Source::Empty, crate::file_preview::Source::Working(path))?)
+        } else { None };
+        return Ok(Diff { text, truncated, media });
     }
     let mut args = vec![
         "--literal-pathspecs",
@@ -502,10 +517,15 @@ pub fn diff(git: &Path, repo: &Path, path: &str, staged: bool) -> Result<Diff, S
     let mut bytes = run(git, repo, &args)?;
     let truncated = bytes.len() > LIMIT;
     bytes.truncate(LIMIT);
-    Ok(Diff {
-        text: String::from_utf8_lossy(&bytes).into_owned(),
-        truncated,
-    })
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    let media = if crate::file_preview::supported(path) || text.contains("Binary files") {
+        use crate::file_preview::{pair, Source};
+        let before = if staged {
+            if file.status.starts_with('A') { Source::Empty } else { Source::Revision("HEAD", file.original_path.as_deref().unwrap_or(path)) }
+        } else { Source::Index(if file.status.as_bytes().get(1) == Some(&b'R') {file.original_path.as_deref().unwrap_or(path)} else {path}) };
+        Some(pair(git, repo, before, if staged {Source::Index(path)} else {Source::Working(path)})?)
+    } else { None };
+    Ok(Diff { text, truncated, media })
 }
 pub fn action(
     git: &Path,

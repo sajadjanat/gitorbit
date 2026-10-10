@@ -1,0 +1,3 @@
+Selected file icons from Material Icon Theme 5.39.0, MIT License.
+https://github.com/material-extensions/vscode-material-icon-theme
+Original SVG artwork is preserved.

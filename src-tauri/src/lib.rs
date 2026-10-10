@@ -4,6 +4,7 @@ pub mod sync;
 pub mod history;
 mod install;
 pub mod version_control;
+pub mod file_preview;
 pub mod git_tools;
 pub mod commit_options;
 pub mod file_history;

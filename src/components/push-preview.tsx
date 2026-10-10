@@ -1,3 +1,4 @@
+import {FileIcon} from "./file-icon";
 import { copyText } from "@/lib/clipboard";
 import { date, plural, t } from "@/lib/i18n";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -74,7 +75,7 @@ function FileItem({ file, selected, onSelect, buttonRef }: { file: CommitFile; s
     : file.path;
   return (
     <button ref={buttonRef} type="button" aria-pressed={selected} onClick={onSelect} className={`flex w-full min-w-0 items-center gap-2 px-3 py-2 text-start text-xs hover:bg-muted/30 focus-visible:outline-2 focus-visible:outline-ring ${selected ? "bg-accent" : ""}`} title={displayPath}>
-      <change.Icon className={`size-3.5 shrink-0 ${change.className}`} />
+      <FileIcon path={file.path}/>
       <span dir="ltr" className="min-w-0 flex-1 truncate font-mono">{displayPath}</span>
       <span className={`shrink-0 text-[10px] ${change.className}`}>{t(change.label)}</span>
     </button>
@@ -294,7 +295,7 @@ export function PushPreview({
               <Button variant="ghost" size="icon-sm" aria-label={t("Back to outgoing commits")} title={t("Back to outgoing commits")} onClick={() => { returnFocus.current = previewFile.path; setSelectedFile(null); }}><X className="size-4" /></Button>
             </div>
             <div className="min-h-0 min-w-0 flex-1">
-              {diffError ? <p role="alert" className="px-4 py-3 text-xs text-destructive">{t(diffError)}</p> : !diff ? <p className="px-4 py-3 text-xs text-muted-foreground">{t("Loading diff…")}</p> : !diff.text ? <p className="px-4 py-3 text-xs text-muted-foreground">{t("No text difference in this view.")}</p> : <SideBySideDiff key={`${selectedHash}-${previewFile.path}`} text={diff.text} staged={false} truncated={diff.truncated} revisions={{ before: diff.beforeRevision?.slice(0, 8) ?? t("Empty tree"), after: diff.afterRevision.slice(0, 8) }} />}
+              {diffError ? <p role="alert" className="px-4 py-3 text-xs text-destructive">{t(diffError)}</p> : !diff ? <p className="px-4 py-3 text-xs text-muted-foreground">{t("Loading diff…")}</p> : !diff.text && !diff.media ? <p className="px-4 py-3 text-xs text-muted-foreground">{t("No text difference in this view.")}</p> : <SideBySideDiff media={diff.media} key={`${selectedHash}-${previewFile.path}`} text={diff.text} staged={false} truncated={diff.truncated} revisions={{ before: diff.beforeRevision?.slice(0, 8) ?? t("Empty tree"), after: diff.afterRevision.slice(0, 8) }} />}
             </div>
           </> : <>{filesHeading()}{renderFiles()}</>}
         </section>

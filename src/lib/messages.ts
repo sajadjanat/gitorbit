@@ -14,8 +14,10 @@ import { revisionBrowserMessages } from "./revision-browser-messages";
 import { shelfOverviewMessages } from "./shelf-overview-messages";
 import { simplifyMessages } from "./simplify-messages";
 import { deleteFilesMessages } from "./delete-files-messages";
+import {filePreviewMessages} from "./file-preview-messages";
 // English source keys provide readable fallback text.
 export const messages: Record<string, {fa: string; ar: string; zh: string}> = {
+  ...filePreviewMessages,
   ...gitToolsMessages,
   ...commitOptionsMessages,
   ...fileHistoryMessages,

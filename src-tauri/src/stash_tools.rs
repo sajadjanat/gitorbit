@@ -86,7 +86,12 @@ pub(crate) fn diff_snapshot(git: &Path, repo: &Path, state: StashPreview, file: 
     else { args.extend(["diff", "--no-ext-diff", "--no-textconv", "--no-color", "--find-renames", &state.base_revision, after]); }
     args.extend(["--", file]); if let Some(old) = &selected.original_path { args.push(old); }
     let mut bytes = run(git, repo, &args)?; let truncated = bytes.len() > 512*1024; bytes.truncate(512*1024);
-    Ok(CommitDiff { text: String::from_utf8_lossy(&bytes).into_owned(), truncated, before_revision: if area == "untracked" { None } else { Some(state.base_revision) }, after_revision: after.clone() })
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    let media = if crate::file_preview::supported(file) || text.contains("Binary files") {
+        use crate::file_preview::{pair, Source};
+        Some(pair(git, repo, if area == "untracked" {Source::Empty} else {Source::Revision(&state.base_revision, selected.original_path.as_deref().unwrap_or(file))}, Source::Revision(after, file))?)
+    } else { None };
+    Ok(CommitDiff { text, truncated, before_revision: if area == "untracked" { None } else { Some(state.base_revision) }, after_revision: after.clone(), media })
 }
 pub fn save_selected(git: &Path, repo: &Path, paths: &[String], message: &str, review_token: &str) -> Result<String, String> {
     save_selection(git, repo, paths, message, review_token, false)?;
