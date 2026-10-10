@@ -48,6 +48,10 @@ fn pattern(path: &str) -> Result<String, String> {
 }
 pub fn review(git: &Path, repo: &Path, paths: &[String], target: &str) -> Result<Info, String> {
     if paths.is_empty() || paths.len() > 2000 {return Err("Select up to 2000 unversioned files to ignore.".into());}
+    // Resolve the selected repository first: macOS uses system aliases such as
+    // /var -> /private/var. Links inside the repository must still be refused.
+    let root = fs::canonicalize(repo).map_err(|e| e.to_string())?;
+    let repo = root.as_path();
     let state = git_tools::inspect(git, repo)?;
     let changes = version_control::changes(git, repo)?;
     let mut unique = HashSet::new(); let mut selected = Vec::new(); let mut patterns = Vec::new();
@@ -68,6 +72,8 @@ pub fn review(git: &Path, repo: &Path, paths: &[String], target: &str) -> Result
     Ok(Info {review_token: format!("{:016x}", token.finish()), target: target.into(), patterns, paths: selected})
 }
 pub fn apply(git: &Path, repo: &Path, request: &Request) -> Result<String, String> {
+    let root = fs::canonicalize(repo).map_err(|e| e.to_string())?;
+    let repo = root.as_path();
     let reviewed = review(git, repo, &request.paths, &request.target)?;
     if reviewed.review_token != request.review_token {return Err("Repository changed. Refresh and review the operation again.".into());}
     let target = target_path(git, repo, &request.target)?;
@@ -154,6 +160,27 @@ mod tests {
     #[test]
     fn inventory_errors_are_returned() {
         let (root, git) = fixture();assert!(inventory(&git, &root.path().join("absent")).is_err());
+    }
+    #[cfg(unix)]
+    #[test]
+    fn repository_aliases_allow_ignore_rules_without_allowing_linked_files() {
+        use std::os::unix::fs::symlink;
+        let (root, git) = fixture();
+        let alias_parent = tempfile::tempdir().unwrap();
+        let alias = alias_parent.path().join("repository");
+        symlink(root.path(), &alias).unwrap();
+        fs::write(root.path().join("private.log"), "private").unwrap();
+        for target in ["shared", "local"] {
+            let destination = target_path(&git, root.path(), target).unwrap();
+            if destination.exists() { fs::remove_file(&destination).unwrap(); }
+            let r = request(&git, &alias, &["private.log"], target);
+            apply(&git, &alias, &r).unwrap();
+            assert_eq!(fs::read(&destination).unwrap(), b"/private.log\n");
+            fs::remove_file(&destination).unwrap();
+        }
+        symlink(root.path().join("private.log"), root.path().join("linked.log")).unwrap();
+        assert!(review(&git, &alias, &["linked.log".into()], "shared").unwrap_err().contains("symbolic links"));
+        assert_eq!(fs::read_to_string(root.path().join("private.log")).unwrap(), "private");
     }
     #[cfg(unix)]
     #[test]
