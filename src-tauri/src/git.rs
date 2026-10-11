@@ -85,6 +85,7 @@ pub struct Repository {
     pub ahead: Option<u64>,
     pub behind: Option<u64>,
     pub detached: bool,
+    pub operation: Option<String>,
     pub files: Vec<ChangedFile>,
     pub error: Option<String>,
     pub fetch_error: Option<String>,
@@ -423,6 +424,12 @@ pub fn scan(
                             },
                         };
                         repo.path = path_string;
+                        if repo.error.is_none() {
+                            match crate::version_control::pending_operation(git, path) {
+                                Ok(operation) => repo.operation = operation.map(str::to_owned),
+                                Err(error) => repo.error = Some(error),
+                            }
+                        }
                         repo.name = name;
                         repo.fetch_error = fetch_error;
                         repo

@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SideBySideDiff } from "@/components/side-by-side-diff";
+import { BranchComparison } from "./branch-comparison";
 import { RemotesManager } from "@/components/remotes-manager";
 import { InteractiveRebase } from "@/components/interactive-rebase";
 import { StashDetails } from "@/components/stash-details";
@@ -55,7 +55,7 @@ function ToolView({active,value,className,children}:{active:string;value:string;
   return active===value?<section className={className}>{children}</section>:null;
 }
 
-type Props = { workspaceId: string; path: string; blocked: boolean; onBusyChange: (busy: boolean) => void; onChanged: () => void; initialRevision?: string; initialAction?: GitToolAction };
+type Props = { workspaceId: string; path: string; blocked: boolean; onBusyChange: (busy: boolean) => void; onChanged: () => void; initialRevision?: string; initialAction?: GitToolAction; dataRevision?: string; requestedView?: string; hideToolsMenu?: boolean; onReviewChanges?: () => void };
 
 export function BranchManager(props: Props & { branch?: string; revision?: string; open?:boolean; onOpenChange?:(value:boolean)=>void; hideTrigger?:boolean }) {
   const [localOpen, setLocalOpen] = useState(false);
@@ -72,7 +72,7 @@ export function BranchManager(props: Props & { branch?: string; revision?: strin
     </DialogContent>
   </Dialog>;
 }
-export function GitTools({ workspaceId, path, blocked, onBusyChange, onChanged, initialRevision, initialAction }: Props) {
+export function GitTools({ workspaceId, path, blocked, onBusyChange, onChanged, initialRevision, initialAction, dataRevision, requestedView, hideToolsMenu, onReviewChanges }: Props) {
   const { direction } = useLanguage();
   const [state, setState] = useState<GitToolsState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,6 +86,7 @@ export function GitTools({ workspaceId, path, blocked, onBusyChange, onChanged, 
   const [selected, setSelected] = useState("");
   const [revision, setRevision] = useState(initialRevision || "");
   const [tab, setTab] = useState(initialRevision ? "log" : "branches");
+  useEffect(() => { if (requestedView) { setTab(requestedView); setComparison(null); } }, [requestedView]);
   useEffect(()=>{if(state)setSelected(old=>state.refs.some(b=>b.name===old&&(b.kind==="local"||b.kind==="remote"))?old:state.refs.find(b=>b.current)?.name??state.refs.find(b=>b.kind==="local")?.name??"");},[state]);
   const [pending, setPending] = useState<(GitToolRequest & { currentBranch: string; head: string }) | null>(null);
   const [comparison, setComparison] = useState<GitComparison | null>(null);
@@ -103,11 +104,13 @@ export function GitTools({ workspaceId, path, blocked, onBusyChange, onChanged, 
     finally { if (generation === loadGeneration.current) setLoading(false); }
   }, [workspaceId, path]);
   useEffect(() => {
+    if (blocked || busy) return;
     let cancelled = false;
     const generation = ++loadGeneration.current;
     void native.tools(workspaceId, path).then((result) => { if (!cancelled && generation === loadGeneration.current) { setState(result); setLoading(false); } }, (e) => { if (!cancelled && generation === loadGeneration.current) { setError(String(e)); setLoading(false); } });
-    return () => { cancelled = true; compareGeneration.current++; loadGeneration.current++; };
-  }, [workspaceId, path]);
+    return () => { cancelled = true; loadGeneration.current++; };
+  }, [workspaceId, path, dataRevision, blocked, busy]);
+  useEffect(() => () => { compareGeneration.current++; }, [workspaceId, path]);
   const locked = blocked || busy || loading || !state;
   function prepare(action: GitToolAction, target = "") {
     if (locked || !state) return;
@@ -131,7 +134,7 @@ export function GitTools({ workspaceId, path, blocked, onBusyChange, onChanged, 
     guard.current = true; setBusy(true); onBusyChange(true); setError(""); setNotice("");
     try { const message = await native.toolAction(workspaceId, path, pending); setNotice(message); setPending(null); setComparison(null); setSelected(""); }
     catch (e) { setError(String(e)); setPending(null); }
-    finally { await refresh(); onChanged(); guard.current = false; setBusy(false); onBusyChange(false); }
+    finally { setLoading(true); onChanged(); guard.current = false; setBusy(false); onBusyChange(false); }
   }
   async function compare(target: string) {
     if (locked) return;
@@ -155,15 +158,15 @@ export function GitTools({ workspaceId, path, blocked, onBusyChange, onChanged, 
       {(tab==="stash"||tab==="log")&&<h3 className="font-medium">{t(({stash:"Stashes",tags:"Tags",remotes:"Remotes",submodules:"Submodules",log:"Recovery and history"} as Record<string,string>)[tab])}</h3>}
       <div className="ms-auto flex items-center gap-2">
         {tab==="branches"&&<Button size="sm" variant={branch?.current&&Boolean(branch.upstream)?"default":"outline"} disabled={locked} onClick={()=>prepare("create")}><Plus className="size-3.5"/>{t("Create branch")}</Button>}
-        <DropdownMenu dir={direction}><DropdownMenuTrigger asChild><Button size="sm" variant="ghost" disabled={busy||blocked}>{t("Repository tools")}<ChevronDown className="size-3.5"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={event=>{if(shelfOpen)event.preventDefault();}}>
+        {!hideToolsMenu&&<DropdownMenu dir={direction}><DropdownMenuTrigger asChild><Button size="sm" variant="ghost" disabled={busy||blocked}>{t("Repository tools")}<ChevronDown className="size-3.5"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={event=>{if(shelfOpen)event.preventDefault();}}>
           <DropdownMenuLabel>{t("Saved work")}</DropdownMenuLabel><DropdownMenuItem onSelect={()=>setShelfOpen(true)}>{t("Shelf")}</DropdownMenuItem><DropdownMenuItem onSelect={()=>{setTab("stash");setComparison(null);}}>{t("Stashes")}</DropdownMenuItem>
           <DropdownMenuSeparator/>{(["tags","remotes","submodules"] as const).map(value=><DropdownMenuItem key={value} onSelect={()=>{setTab(value);setComparison(null);}}>{t({tags:"Tags",remotes:"Remotes",submodules:"Submodules"}[value])}</DropdownMenuItem>)}
           <DropdownMenuSeparator/><DropdownMenuItem onSelect={()=>{setTab("log");setComparison(null);}}>{t("Recovery and history")}</DropdownMenuItem>
-        </DropdownMenuContent></DropdownMenu>
+        </DropdownMenuContent></DropdownMenu>}
         {(tab==="branches"||tab==="stash"||tab==="log")&&<Button variant="ghost" size="icon-sm" aria-label={t("Refresh branches")} title={t("Refresh branches")} disabled={busy||blocked||loading} onClick={()=>{setError("");setPending(null);void refresh();}}>{loading||busy?<LoaderCircle className="size-3.5 animate-spin"/>:<RefreshCw className="size-3.5"/>}</Button>}
       </div>
     </div>
-    {state?.operation && <div className="px-4 py-3 border-b bg-amber-500/10 space-y-2"><p>{t("Operation in progress: {operation}", { operation: state.operation })} · {t("Conflicts")}: {number(state.conflicts)}</p><div className="flex flex-wrap gap-2">{actionButton("continue", "", state.conflicts > 0)}{actionButton("abort", "")}{state.operation !== "merge" && actionButton("skip", "")}<span className="text-muted-foreground self-center">{t("Resolve files in Version Control, then continue here.")}</span></div></div>}
+    {state?.operation && <div className="px-4 py-3 border-b bg-amber-500/10 space-y-2"><p>{t("Operation in progress: {operation}", { operation: state.operation })} · {t("Conflicts")}: {number(state.conflicts)}</p><div className="flex flex-wrap gap-2">{actionButton("continue", "", state.conflicts > 0)}{actionButton("abort", "")}{state.operation !== "merge" && actionButton("skip", "")}{onReviewChanges?<Button size="sm" variant="outline" disabled={locked} onClick={onReviewChanges}>{t("Review in Version Control")}</Button>:<span className="text-muted-foreground self-center">{t("Resolve files in Version Control, then continue here.")}</span>}</div></div>}
     {(error || notice) && <Alert role={error ? "alert" : "status"} variant={error ? "destructive" : "default"} className="mx-4 my-2 w-auto py-2"><AlertDescription className="whitespace-pre-wrap break-words">{t(error || notice)}</AlertDescription></Alert>}
     <div className="flex flex-1 min-h-0 flex-col">
       <ToolView active={tab} value="remotes" className="m-0 flex-1 min-h-0 flex flex-col"><RemotesManager workspaceId={workspaceId} path={path} blocked={locked} onBusyChange={onBusyChange} onChanged={() => {void refresh(); onChanged();}} /></ToolView>
@@ -185,8 +188,9 @@ export function GitTools({ workspaceId, path, blocked, onBusyChange, onChanged, 
           })}{!refs.length&&<p className="p-3 text-muted-foreground">{loading?t("Loading…"):t("No branches match your search.")}</p>}</div>
         </div>
         <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-          {branch?<div className="p-5 space-y-4 border-b">
+          {branch?<div className={comparison?"px-5 py-3 border-b":"p-5 space-y-4 border-b"}>
             <div className="flex items-center gap-2 min-w-0"><GitBranch className="size-4 shrink-0 text-muted-foreground"/><h3 className="text-sm font-medium break-all" dir="ltr">{shortRef(branch.name)}</h3>{branch.current&&<span className="text-[11px] text-muted-foreground">{t("Current")}</span>}</div>
+            {!comparison&&<>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground"><span>{t(branch.kind==="remote"?"Remote branch":"Local branch")}</span><code dir="ltr" title={branch.hash}>{branch.hash.slice(0,7)}</code>{branch.kind==="local"&&<span>{branch.upstream?<>{t("Upstream")}: <bdi dir="ltr">{shortRef(branch.upstream)}</bdi></>:t("No upstream")}</span>}</div>
             <p className="text-muted-foreground">{branch.current?t("You are working on this branch."):t("Switch to this branch, or compare it with {branch}.",{branch:state?.branch||"HEAD"})}</p>
             <div className="flex flex-wrap gap-2">
@@ -194,9 +198,9 @@ export function GitTools({ workspaceId, path, blocked, onBusyChange, onChanged, 
               {branch.current&&!branch.upstream&&<Button size="sm" disabled={locked||!state?.remotes.length} onClick={()=>prepare("publish",branch.name)}>{toolLabel("publish")}</Button>}
               {!branch.current&&<><Button size="sm" variant="outline" disabled={locked||!state?.head} onClick={()=>void compare(branch.name)}>{t("Compare with current")}</Button>{actionButton("merge",branch.name,Boolean(state?.operation))}</>}
               <ActionMenuButton label={shortRef(branch.name)} actions={refActions(branch).filter(action=>![toolLabel("checkout"),t("Compare with current"),toolLabel("merge")].includes(action.label))} disabled={locked} text={t("More actions")}/>
-            </div>
+            </div></>}
           </div>:<div className="flex-1 grid place-items-center p-5 text-center text-muted-foreground"><div><GitMerge className="size-6 mx-auto mb-3"/><p>{t("Select a branch to view its actions.")}</p></div></div>}
-          {comparison && <div className="flex-1 min-h-0 flex flex-col"><div className="flex items-center gap-2 p-3 border-b text-muted-foreground"><span className="min-w-0 flex-1">{t("Current-only commits: {ahead} · Selected-only commits: {behind}", {ahead: number(comparison.ahead), behind: number(comparison.behind)})}</span><Button size="icon-sm" variant="ghost" aria-label={t("Close comparison")} title={t("Close comparison")} onClick={()=>setComparison(null)}><X className="size-3.5"/></Button></div>{comparison.diff ? <SideBySideDiff text={comparison.diff} staged={false} revisions={{before: "HEAD", after: shortRef(selected)}} truncated={comparison.truncated} /> : <p className="p-4 text-muted-foreground">{t("No text difference in this view.")}</p>}</div>}
+          {comparison && <div className="flex-1 min-h-0 flex flex-col"><div className="flex items-center gap-2 p-3 border-b text-muted-foreground"><span className="min-w-0 flex-1">{t("Current-only commits: {ahead} · Selected-only commits: {behind}", {ahead: number(comparison.ahead), behind: number(comparison.behind)})}<span className="block text-[11px] mt-1">{t("Comparing committed snapshots; local edits are excluded.")}</span></span><Button size="sm" variant="ghost" onClick={()=>setComparison(null)}><X className="size-3.5"/>{t("Close comparison")}</Button></div><BranchComparison key={`${comparison.head}:${comparison.target}`} workspaceId={workspaceId} path={path} comparison={comparison}/></div>}
         </div>
       </ToolView>
       <ToolView active={tab} value="stash" className="m-0 flex-1 min-h-0 overflow-auto border-t p-4 space-y-3">

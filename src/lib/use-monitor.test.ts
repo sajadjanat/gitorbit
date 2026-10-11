@@ -81,3 +81,15 @@ it("supports manual refresh when monitoring is paused", async () => {
   act(() => hook.result.current.refresh("a", true));
   await waitFor(() => expect(native.scan).toHaveBeenLastCalledWith("a", true));
 });
+
+it("invalidates details after every successful scan even when counts and timestamps match",async()=>{
+  const hook=renderHook(()=>useMonitor(single,true,false));
+  await waitFor(()=>expect(hook.result.current.revisions.a).toBe(1));
+  act(()=>hook.result.current.refresh("a"));
+  await waitFor(()=>expect(hook.result.current.revisions.a).toBe(2));
+  expect(hook.result.current.snapshots.a.scannedAt).toBe(1);
+  vi.mocked(native.scan).mockRejectedValueOnce("Scan failed");
+  act(()=>hook.result.current.refresh("a"));
+  await waitFor(()=>expect(hook.result.current.errors.a).toBe("Scan failed"));
+  expect(hook.result.current.revisions.a).toBe(2);
+});

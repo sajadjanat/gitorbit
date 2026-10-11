@@ -22,7 +22,9 @@ import { PatchTools } from "@/components/patch-tools";
 import { CommitMessageLibrary, rememberCommitMessage } from "@/components/commit-message-library";
 import { ContextActions, type ContextAction } from "./context-actions";
 import { ShelveFiles, Shelves } from "./shelves";
+import { GitRecovery } from "./git-recovery";
 import { DeleteFiles } from "./delete-files";
+import { repositoryStateKey, useRepositoryViewState } from "@/lib/repository-view-state";
 
 type Group = "staged" | "changes" | "unversioned";
 const keepMessageKey = "workspace-monitor-keep-commit-message";
@@ -38,17 +40,19 @@ export function fileGroups(files: ChangedFile[]) {
     unversioned: files.filter((f) => f.status === "??"),
   };
 }
-export function VersionControl({ workspaceId, path, revision, onChanged, blocked, onBusyChange }: { workspaceId: string; path: string; revision?: string; onChanged: () => void; blocked: boolean; onBusyChange?: (busy: boolean) => void }) {
+export function VersionControl({ workspaceId, path, revision, onChanged, blocked, onBusyChange, onReviewPush, onReviewOperations, hideSavedWork }: { workspaceId: string; path: string; revision?: string; onChanged: () => void; blocked: boolean; onBusyChange?: (busy: boolean) => void; onReviewPush?: () => void; onReviewOperations?: () => void; hideSavedWork?: boolean }) {
   const { direction } = useLanguage();
+  const scope = repositoryStateKey(workspaceId, path);
   const [state, setState] = useState<Repository | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [failedPush, setFailedPush] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState("");
   const [reload, setReload] = useState(0);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [message, setMessage] = useState("");
+  const [checked, setChecked] = useRepositoryViewState<Set<string>>(scope, "checked", new Set());
+  const [message, setMessage] = useRepositoryViewState(scope, "message", "", true);
   const [keepMessage, setKeepMessage] = useState(readKeepMessagePreference);
   const [commitInfo, setCommitInfo] = useState<CommitOptionsInfo | null>(null);
   const lastCommitHead = useRef<string | null>(null);
@@ -61,16 +65,17 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
   const [signing, setSigning] = useState<"default"|"yes"|"no">("default");
   const [moreFileActions, setMoreFileActions] = useState(false);
   const [amendReview, setAmendReview] = useState<{request: CommitOptionsRequest; info: CommitOptionsInfo} | null>(null);
-  const [preview, setPreview] = useState<{ file: string; staged: boolean; unversioned: boolean } | null>(null);
+  const [preview, setPreview] = useRepositoryViewState<{ file: string; staged: boolean; unversioned: boolean } | null>(scope, "preview", null);
   const [diff, setDiff] = useState<{ text: string; truncated: boolean; media?:MediaDiff|null } | null>(null);
   const [diffError, setDiffError] = useState("");
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<Group>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useRepositoryViewState<Set<Group>>(scope, "groups", new Set());
   const [contextRollback,setContextRollback]=useState<string[]|null>(null);
   const [contextAction,setContextAction]=useState<GitToolAction>("rollback");
   const [contextShelf,setContextShelf]=useState<string[]|null>(null);
   const [contextHistory,setContextHistory]=useState<string|null>(null);
   const [contextDelete,setContextDelete]=useState<string[]|null>(null);
   useEffect(() => {
+    if (busy || blocked) return;
     let cancelled = false;
     setLoading(true);
     void native.changes(workspaceId, path).then((result) => {
@@ -81,8 +86,9 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
       setChecked((old) => new Set([...old].filter((key) => valid.has(key))));
     }, (e) => { if (!cancelled) setLoadError(String(e)); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [workspaceId, path, revision, reload]);
+  }, [workspaceId, path, revision, reload, busy, blocked]);
   useEffect(() => {
+    if (busy || blocked) return;
     let cancelled = false;
     setCommitInfo(null); setCommitInfoError("");
     void native.commitOptions(workspaceId, path).then((result) => {
@@ -93,17 +99,21 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
       }
     }, (e) => { if (!cancelled) setCommitInfoError(String(e)); });
     return () => { cancelled = true; };
-  }, [workspaceId, path, revision, reload]);
+  }, [workspaceId, path, revision, reload, busy, blocked]);
   useEffect(() => { lastCommitHead.current = null; setAmend(false); setSignOff(false); setCustomAuthor(false); setSigning("default"); setAmendReview(null); }, [workspaceId, path]);
+  const lastPreview = useRef("");
   useEffect(() => {
+    if (busy || blocked) return;
     let cancelled = false;
-    setDiff(null); setDiffError("");
+    const identity = JSON.stringify([workspaceId,path,preview]);
+    if (lastPreview.current !== identity) { setDiff(null); lastPreview.current = identity; }
+    setDiffError("");
     if (preview) void native.diff(workspaceId, path, preview.file, preview.staged).then(
       (value) => { if (!cancelled) setDiff(value); },
       (e) => { if (!cancelled) setDiffError(String(e)); },
     );
     return () => { cancelled = true; };
-  }, [workspaceId, path, revision, preview, reload]);
+  }, [workspaceId, path, revision, preview, reload, busy, blocked]);
   const groups = fileGroups(state?.files ?? []);
   const locked = busy || blocked || loading || Boolean(loadError);
   async function action(kind: "stage" | "unstage" | "commit", pushAfterCommit = false, reviewed?: CommitOptionsRequest, targetPaths?: string[]) {
@@ -116,7 +126,7 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
       return;
     }
     const paths = targetPaths ?? [...new Set([...checked].filter((key) => kind === "unstage" ? key.startsWith("staged:") : !key.startsWith("staged:")).map((key) => key.slice(key.indexOf(":") + 1)))];
-    setBusy(true); onBusyChange?.(true); setError(""); setNotice("");
+    setBusy(true); onBusyChange?.(true); setError(""); setFailedPush(false); setNotice("");
     let committed = false;
     try {
       let result = kind === "commit"
@@ -138,6 +148,7 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
       setNotice(result);
       setChecked(new Set()); setPreview(null);
     } catch (e) {
+      setFailedPush(committed && pushAfterCommit);
       setNotice("");
       setError(committed ? t("Commit created, but push failed: {error}", {error: String(e)}) : String(e));
     }
@@ -180,7 +191,7 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
     <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b">
       <Button variant="outline" size="sm" disabled={locked || !hasStage} onClick={() => void action("stage")}><Plus className="size-3.5" />{t("Stage selected")}</Button>
       <Button variant="outline" size="sm" disabled={locked || !hasUnstage} onClick={() => void action("unstage")}><Minus className="size-3.5" />{t("Unstage selected")}</Button>
-      <Shelves workspaceId={workspaceId} path={path} revision={revision} blocked={locked} onBusyChange={onBusyChange} onChanged={filesChanged}/>
+      {!hideSavedWork&&<Shelves workspaceId={workspaceId} path={path} revision={revision} blocked={locked} onBusyChange={onBusyChange} onChanged={filesChanged}/>}
       <Button variant="ghost" size="sm" aria-expanded={moreFileActions} aria-controls="more-file-actions" disabled={busy || blocked} onClick={() => setMoreFileActions((value)=>!value)}>{t("More file actions")}<ChevronDown className={`size-3.5 transition-transform ${moreFileActions ? "rotate-180" : ""}`} /></Button>
       <Button variant="ghost" size="sm" className="ms-auto" aria-label={t("Refresh files")} disabled={busy || blocked} onClick={() => { setReload((n) => n + 1); onChanged(); }}>
         {loading ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}{t("Refresh")}</Button>
@@ -199,7 +210,8 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
       <ConflictEditor workspaceId={workspaceId} path={path} file={conflictPaths.length === 1 ? conflictPaths[0] : ""} blocked={locked} onBusyChange={onBusyChange} onChanged={filesChanged} />
       {(["resolve-ours", "resolve-theirs", "resolve-mark"] as const).map((kind) => <FileGitAction key={kind} workspaceId={workspaceId} path={path} paths={conflictPaths} action={kind} blocked={locked} onBusyChange={onBusyChange} onChanged={filesChanged} />)}
     </div>}
-    {(error || loadError || notice) && <Alert variant={error || loadError ? "destructive" : "default"} className="mx-4 my-2 w-auto py-2"><AlertDescription>{t(error || loadError || notice)}</AlertDescription></Alert>}
+    {error&&<GitRecovery workspaceId={workspaceId} path={path} error={error} blocked={busy||blocked} onBusyChange={onBusyChange} onChanged={onChanged} onRetry={()=>{setError("");setReload(n=>n+1);if(failedPush)onReviewPush?.();}} onReviewChanges={()=>setError("")} onReviewOperations={onReviewOperations}/>}
+    {(loadError || notice) && <Alert variant={loadError ? "destructive" : "default"} className="mx-4 my-2 w-auto py-2"><AlertDescription>{t(loadError || notice)}</AlertDescription></Alert>}
     <div className="flex flex-1 min-h-0 flex-col md:flex-row">
       <div className="md:w-[360px] md:shrink-0 border-b md:border-b-0 md:border-e flex flex-col min-h-0 max-h-[45%] md:max-h-none">
         <div className="flex-1 min-h-0 overflow-auto p-2">
@@ -272,7 +284,6 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
           {amend && <p className="text-[11px] text-amber-600 dark:text-amber-400">{t(commitInfo?.blockedReason ?? "Amend rewrites the last commit. Review before replacing it.")}</p>}
           {signOff && <p className="text-[11px] text-muted-foreground break-words">{commitInfo?.signOffIdentity ? <><span>{t("Sign-off")}: </span><bdi>{commitInfo.signOffIdentity}</bdi></> : t("Configure your Git name and email before adding a sign-off.")}</p>}
           {customAuthor && <div className="space-y-1"><Input aria-label={t("Author name")} placeholder={t("Author name")} value={authorName} disabled={busy || blocked} onChange={(event)=>setAuthorName(event.target.value)} /><Input dir="ltr" aria-label={t("Author email")} placeholder={t("Author email")} value={authorEmail} disabled={busy || blocked} onChange={(event)=>setAuthorEmail(event.target.value)} />{invalidAuthor&&<p className="text-[11px] text-destructive">{t("Enter a valid author name and email.")}</p>}</div>}
-          {commitInfo&&<p className="text-[10px] text-muted-foreground truncate" title={commitInfo.signingKey ?? undefined}>{t("Git signing")}: {t(signing === "yes" ? "Sign this commit" : signing === "no" ? "Do not sign this commit" : commitInfo.signingEnabled ? "Enabled" : "Disabled")} · <bdi>{commitInfo.signingFormat ?? "openpgp"}</bdi>{commitInfo.signingKey ? ` · ${commitInfo.signingKey}` : ""}</p>}
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <Button size="sm" className="min-w-0 px-2" disabled={commitDisabled} onClick={() => void action("commit")}>
               {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <GitCommitHorizontal className="size-3.5" />}
@@ -291,7 +302,7 @@ export function VersionControl({ workspaceId, path, revision, onChanged, blocked
                 }}>{t("Amend last commit")}</DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem checked={signOff} onCheckedChange={setSignOff}>{t("Add Signed-off-by")}</DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem checked={customAuthor} onCheckedChange={(value)=>{setCustomAuthor(value);if(value){setAuthorName((amend ? commitInfo?.previousAuthorName : commitInfo?.defaultAuthorName)??"");setAuthorEmail((amend ? commitInfo?.previousAuthorEmail : commitInfo?.defaultAuthorEmail)??"");}}}>{t("Custom commit author")}</DropdownMenuCheckboxItem>
-                <DropdownMenuSeparator/><DropdownMenuLabel>{t("Commit signing")}</DropdownMenuLabel><DropdownMenuRadioGroup value={signing} onValueChange={(value)=>setSigning(value as typeof signing)}><DropdownMenuRadioItem value="default">{t("Use Git signing setting")}</DropdownMenuRadioItem><DropdownMenuRadioItem value="yes">{t("Sign this commit")}</DropdownMenuRadioItem><DropdownMenuRadioItem value="no">{t("Do not sign this commit")}</DropdownMenuRadioItem></DropdownMenuRadioGroup><DropdownMenuSeparator/>
+                <DropdownMenuSeparator/><DropdownMenuLabel>{t("Commit signing")}{commitInfo&&<p className="px-2 pb-1 text-xs text-muted-foreground">{t(commitInfo.signingEnabled?"Enabled":"Disabled")} · <bdi>{commitInfo.signingFormat??"openpgp"}</bdi></p>}</DropdownMenuLabel><DropdownMenuRadioGroup value={signing} onValueChange={(value)=>setSigning(value as typeof signing)}><DropdownMenuRadioItem value="default">{t("Use Git signing setting")}</DropdownMenuRadioItem><DropdownMenuRadioItem value="yes">{t("Sign this commit")}</DropdownMenuRadioItem><DropdownMenuRadioItem value="no">{t("Do not sign this commit")}</DropdownMenuRadioItem></DropdownMenuRadioGroup><DropdownMenuSeparator/>
                 <DropdownMenuCheckboxItem
                   checked={keepMessage}
                   onCheckedChange={(value) => {

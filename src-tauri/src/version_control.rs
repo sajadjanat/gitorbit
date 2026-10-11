@@ -15,11 +15,12 @@ pub(crate) fn git_path(git: &Path, repo: &Path, name: &str) -> Result<PathBuf, S
     Ok(if path.is_absolute() { path } else { repo.join(path) })
 }
 pub(crate) fn pending_operation(git: &Path, repo: &Path) -> Result<Option<&'static str>, String> {
+    let directory = git_path(git, repo, ".")?;
     for (marker, operation) in [
         ("MERGE_HEAD", "merge"), ("rebase-merge", "rebase"), ("rebase-apply", "rebase"),
         ("CHERRY_PICK_HEAD", "other"), ("REVERT_HEAD", "other"), ("sequencer", "other"),
     ] {
-        if git_path(git, repo, marker)?.try_exists().map_err(|e| e.to_string())? {
+        if directory.join(marker).try_exists().map_err(|e| e.to_string())? {
             return Ok(Some(operation));
         }
     }
@@ -37,7 +38,9 @@ pub fn changes(git: &Path, repo: &Path) -> Result<Repository, String> {
             "--untracked-files=all",
         ],
     )?;
-    parse_status(&bytes)
+    let mut state = parse_status(&bytes)?;
+    state.operation = pending_operation(git, repo)?.map(str::to_owned);
+    Ok(state)
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -323,6 +326,32 @@ fn commit_file_diff(git: &Path, repo: &Path, commit_hash: &str, path: &str, file
         Some(pair(git, repo, parent.as_deref().map(|p| Source::Revision(p, file.original_path.as_deref().unwrap_or(path))).unwrap_or(Source::Empty), Source::Revision(commit_hash, path))?)
     } else { None };
     Ok(CommitDiff { text, truncated, before_revision: parent, after_revision: commit_hash.to_owned(), media })
+}
+
+pub fn comparison_files(git: &Path, repo: &Path, before: &str, after: &str) -> Result<Vec<CommitFile>, String> {
+    for revision in [before, after] {
+        if !matches!(revision.len(), 40 | 64) || !revision.bytes().all(|b| b.is_ascii_hexdigit()) || run(git, repo, &["cat-file", "-t", revision])? != b"commit\n" {
+            return Err("Choose valid commits for comparison.".into());
+        }
+    }
+    parse_name_status(&run(git, repo, &["diff", "--name-status", "-z", "--find-renames", before, after, "--"])?)
+}
+
+pub fn comparison_diff(git: &Path, repo: &Path, before: &str, after: &str, path: &str) -> Result<CommitDiff, String> {
+    let files = comparison_files(git, repo, before, after)?;
+    let file = files.iter().find(|file| file.path == path).ok_or("Choose a file from the comparison.")?;
+    let mut args = vec!["--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--find-renames", before, after, "--", path];
+    if let Some(original) = &file.original_path { args.push(original); }
+    let mut bytes = run(git, repo, &args)?;
+    const LIMIT: usize = 512 * 1024;
+    let truncated = bytes.len() > LIMIT;
+    bytes.truncate(LIMIT);
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    let media = if crate::file_preview::supported(path) || text.contains("Binary files") {
+        use crate::file_preview::{pair, Source};
+        Some(pair(git, repo, if file.status.starts_with('A') { Source::Empty } else { Source::Revision(before, file.original_path.as_deref().unwrap_or(path)) }, if file.status.starts_with('D') { Source::Empty } else { Source::Revision(after, path) })?)
+    } else { None };
+    Ok(CommitDiff { text, truncated, before_revision: Some(before.to_owned()), after_revision: after.to_owned(), media })
 }
 
 fn parse_name_status(bytes: &[u8]) -> Result<Vec<CommitFile>, String> {
@@ -621,6 +650,7 @@ pub fn action(
             ))
         }
         "pull" => {
+            if state.operation.is_some() { return Err("Finish the current Git operation before pulling.".into()); }
             if state.changed > 0 {
                 return Err("Skipped: commit or stash local changes before pulling.".into());
             }
@@ -1062,4 +1092,33 @@ mod tests {
             "Local branch"
         );
     }
+    #[test]
+    fn comparison_is_file_scoped_immutable_and_handles_renames_binary_and_literal_paths() {
+        let (git, _) = find_git().unwrap();
+        let root = tempfile::tempdir().unwrap(); let repo = root.path(); setup(repo, &git);
+        fs::write(repo.join("one.txt"), "old one\n").unwrap();
+        fs::write(repo.join("rename me.txt"), "kept rename contents\n").unwrap();
+        fs::write(repo.join("deleted.txt"), "deleted contents\n").unwrap();
+        exec(&git, repo, &["add", "."]); exec(&git, repo, &["commit", "-qm", "Before"]);
+        let before = String::from_utf8_lossy(&run(&git, repo, &["rev-parse", "HEAD"]).unwrap()).trim().to_owned();
+        fs::write(repo.join("one.txt"), "new one\n").unwrap();
+        fs::write(repo.join("[literal].txt"), "literal addition\n").unwrap();
+        fs::rename(repo.join("rename me.txt"), repo.join("renamed.txt")).unwrap();
+        fs::remove_file(repo.join("deleted.txt")).unwrap();
+        fs::write(repo.join("binary.dat"), [0, 1, 2, 3]).unwrap();
+        exec(&git, repo, &["add", "-A"]); exec(&git, repo, &["commit", "-qm", "After"]);
+        let after = String::from_utf8_lossy(&run(&git, repo, &["rev-parse", "HEAD"]).unwrap()).trim().to_owned();
+        let files = comparison_files(&git, repo, &before, &after).unwrap(); assert_eq!(files.len(), 5);
+        fs::write(repo.join("one.txt"), "uncommitted edits\n").unwrap();
+        let diff = comparison_diff(&git, repo, &before, &after, "one.txt").unwrap();
+        assert!(diff.text.contains("+new one")); assert!(!diff.text.contains("uncommitted")); assert!(!diff.text.contains("[literal]"));
+        let renamed = comparison_diff(&git, repo, &before, &after, "renamed.txt").unwrap(); assert!(renamed.text.contains("rename from rename me.txt"));
+        let deleted = comparison_diff(&git, repo, &before, &after, "deleted.txt").unwrap(); assert!(deleted.text.contains("-deleted contents"));
+        let binary = comparison_diff(&git, repo, &before, &after, "binary.dat").unwrap(); assert!(binary.media.is_some());
+        assert!(comparison_diff(&git, repo, &before, &after, "[literal].txt").unwrap().text.contains("+literal addition"));
+        for path in ["../outside", ":(glob)*", ".git/config"] { assert!(comparison_diff(&git, repo, &before, &after, path).is_err()); }
+        for revision in ["HEAD", "--help"] { assert!(comparison_files(&git, repo, revision, &after).is_err()); }
+        assert!(comparison_files(&git, repo, &after, &after).unwrap().is_empty());
+    }
+
 }

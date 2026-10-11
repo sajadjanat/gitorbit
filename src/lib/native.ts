@@ -27,6 +27,7 @@ export interface Repository {
   ahead: number | null;
   behind: number | null;
   detached: boolean;
+  operation?: string | null;
   files: ChangedFile[];
   error: string | null;
   fetchError: string | null;
@@ -117,7 +118,7 @@ export interface GitToolEntry { id: string; hash: string; subject: string }
 export interface GitToolsState { reviewToken: string; head: string; branch: string; operation: string | null; changed: number; conflicts: number; refs: GitToolRef[]; stashes: GitToolEntry[]; reflog: GitToolEntry[]; remotes: string[] }
 export type GitToolAction = "create" | "restore-branch" | "checkout" | "rename" | "delete" | "merge" | "rebase" | "cherry-pick" | "revert" | "reset" | "undo-commit" | "upstream" | "unset-upstream" | "stash" | "stash-apply" | "stash-pop" | "stash-drop" | "rollback" | "resolve-ours" | "resolve-theirs" | "resolve-mark" | "resolve-edit" | "continue" | "abort" | "skip" | "publish" | "delete-remote" | "create-tag" | "delete-tag" | "restore-stash";
 export interface GitToolRequest { action: GitToolAction; target: string; name: string; paths: string[]; mode: string; force: boolean; checkout: boolean; reviewToken: string }
-export interface GitComparison { target: string; ahead: number; behind: number; diff: string; truncated: boolean }
+export interface GitComparison { head: string; target: string; ahead: number; behind: number; files: CommitFile[] }
 export interface GitConflict { base: string; ours: string; theirs: string; working: string; reviewToken: string }
 export interface CommitOptionsInfo { reviewToken: string; head: string; previousMessage: string; canAmend: boolean; blockedReason: string | null; staged: number; published: boolean; signOffIdentity: string | null; defaultAuthorName?:string; defaultAuthorEmail?:string; previousAuthorName?:string; previousAuthorEmail?:string; signingEnabled?:boolean; signingKey?:string|null; signingFormat?:string }
 export interface CommitOptionsRequest { reviewToken: string; message: string; amend: boolean; signOff: boolean; author?:{name:string;email:string}|null; sign?:boolean|null }
@@ -190,6 +191,7 @@ export const native = {
   tools: (workspaceId: string, path: string) => invoke<GitToolsState>("repository_tools", { workspaceId, path }),
   toolAction: (workspaceId: string, path: string, request: GitToolRequest) => invoke<string>("repository_tool_action", { workspaceId, path, request }),
   compare: (workspaceId: string, path: string, target: string) => invoke<GitComparison>("repository_compare", { workspaceId, path, target }),
+  compareDiff: (workspaceId: string, path: string, before: string, after: string, file: string) => invoke<CommitDiff>("repository_compare_diff", {workspaceId, path, before, after, file}),
   conflict: (workspaceId: string, path: string, file: string) => invoke<GitConflict>("repository_conflict", { workspaceId, path, file }),
   sync: (workspaceId: string, path: string, action: "inspect" | "fetch" | "integrate" | "abort", expectedHead = "", expectedUpstreamHead = "", expectedToken = "") => invoke<SyncState>("repository_sync", {workspaceId, path, action, expectedHead, expectedUpstreamHead, expectedToken}),
   available: isTauri,

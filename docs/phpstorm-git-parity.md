@@ -2,6 +2,10 @@
 
 Investigation date: 2026-10-10. This document records the inspected artifact, the GitOrbit implementation scope, and the remaining work. It is not a claim of complete PhpStorm parity or a release announcement.
 
+Follow-up: [2026-10-11 product and Git workflow audit](audits/2026-10-11-product-and-git.md) reviews the released 0.7.1 baseline, records fresh static class-call evidence, reproduces draft-loss and multi-file comparison defects, and prioritizes continuity and recovery before advanced feature expansion. The original evidence and its limitations below remain historical.
+
+Delivery follow-up: [workflow reliability and simplification](audits/2026-10-11-workflow-fixes.md) records the four corrections, navigation changes, verification and native GUI testing limits.
+
 ## Evidence and boundaries
 
 The installed reference was PhpStorm **2025.3**, specifically `plugins/vcs-git/lib/vcs-git.jar`. Its `META-INF/plugin.xml` declares the `Git4Idea` plugin version **253.28294.345**.

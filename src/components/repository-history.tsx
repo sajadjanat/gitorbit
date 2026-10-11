@@ -17,7 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 const dateFormat = { format: (value: Date) => date(value, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) };
 const emptyFilters: HistoryFilters = {text:"",author:"",file:"",branch:"",after:"",before:""};
 
-export function RepositoryHistory({ workspaceId, path, blocked = false, onBusyChange = () => {}, onChanged = () => {} }: { workspaceId: string; path: string; blocked?: boolean; onBusyChange?: (busy: boolean) => void; onChanged?: () => void }) {
+export function RepositoryHistory({ workspaceId, path, revision, blocked = false, onBusyChange = () => {}, onChanged = () => {} }: { workspaceId: string; path: string; revision?: string; blocked?: boolean; onBusyChange?: (busy: boolean) => void; onChanged?: () => void }) {
   const [limit, setLimit] = useState(200);
   const [scope, setScope] = useState<"all" | "head">("all");
   const [refresh, setRefresh] = useState(0);
@@ -32,6 +32,7 @@ export function RepositoryHistory({ workspaceId, path, blocked = false, onBusyCh
   const filtering = Object.values(filters).some(Boolean);
   const key = `${workspaceId}\0${path}\0${scope}\0${JSON.stringify(filters)}`;
   useEffect(() => {
+    if (blocked) return;
     let cancelled = false;
     setState((old) => ({ key, data: old.key === key ? old.data : undefined, loading: true }));
     const request = filtering ? native.history(workspaceId, path, limit, scope, filters) : native.history(workspaceId, path, limit, scope);
@@ -40,7 +41,7 @@ export function RepositoryHistory({ workspaceId, path, blocked = false, onBusyCh
       (error) => { if (!cancelled) setState((old) => ({ key, data: old.key === key ? old.data : undefined, loading: false, error: String(error) })); },
     );
   return () => { cancelled = true; };
-  }, [key, workspaceId, path, limit, scope, refresh, filters, filtering]);
+  }, [key, workspaceId, path, limit, scope, refresh, filters, filtering, revision, blocked]);
   const data = state.key === key ? state.data : undefined;
   const loading = state.key !== key || state.loading;
   const graph = useMemo(() => layoutGraph(data?.commits ?? []), [data]);

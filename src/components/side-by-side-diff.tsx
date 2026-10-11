@@ -15,7 +15,7 @@ type DiffRow =
   | { kind: "hunk"; text: string }
   | { kind: "meta"; text: string };
 
-function parseDiff(text: string): DiffRow[] {
+export function parseDiff(text: string): DiffRow[] {
   const rows: DiffRow[] = [];
   let oldNumber = 1;
   let newNumber = 1;
@@ -38,6 +38,11 @@ function parseDiff(text: string): DiffRow[] {
 
   for (const rawLine of text.replace(/\r/g, "").split("\n")) {
     const line = rawLine;
+    if (line.startsWith("diff --git ")) {
+      flushChanges();
+      insideHunk = false;
+      continue;
+    }
     const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/);
     if (hunk) {
       flushChanges();
@@ -63,7 +68,11 @@ function parseDiff(text: string): DiffRow[] {
       continue;
     }
     if (!insideHunk && line.startsWith("+++ ")) {
-      insideHunk = true;
+      continue;
+    }
+    if (!insideHunk) {
+      flushChanges();
+      if (line) rows.push({kind: "meta", text: line});
       continue;
     }
     if (line.startsWith("\\")) continue;

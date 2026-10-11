@@ -1,6 +1,6 @@
 import {FileIcon} from "./file-icon";
 import { copyText } from "@/lib/clipboard";
-import { date, plural, t } from "@/lib/i18n";
+import { date, number, plural, t } from "@/lib/i18n";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -19,9 +19,9 @@ import { Button } from "@/components/ui/button";
 import { SideBySideDiff } from "@/components/side-by-side-diff";
 import { ContextActions } from "./context-actions";
 import { FileHistory } from "./file-history";
-import { GitAuthentication } from "@/components/git-authentication";
+import { GitRecovery } from "./git-recovery";
 import { GitSync } from "@/components/git-sync";
-import { isAuthenticationError, isSyncError, redactGitError } from "@/lib/git-errors";
+import { isAuthenticationError, isSyncError } from "@/lib/git-errors";
 import { native, type CommitDiff, type CommitFile, type Outgoing, type OutgoingCommit } from "@/lib/native";
 
 const dateFormat = { format: (value: Date) => date(value, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) };
@@ -91,6 +91,8 @@ export function PushPreview({
   blocked = false,
   onBusyChange,
   onReviewChanges,
+  onReviewOperations,
+  revision,
 }: {
   workspaceId: string;
   path: string;
@@ -100,6 +102,8 @@ export function PushPreview({
   blocked?: boolean;
   onBusyChange?: (busy: boolean) => void;
   onReviewChanges?: () => void;
+  onReviewOperations?: () => void;
+  revision?: string;
 }) {
   const [refresh, setRefresh] = useState(0);
   const [outgoing, setOutgoing] = useState<Outgoing | null>(null);
@@ -119,7 +123,7 @@ export function PushPreview({
   const [diffError, setDiffError] = useState("");
   const fileButtons = useRef(new Map<string, HTMLButtonElement>());
   const returnFocus = useRef<string | null>(null);
-  const previewFile = selectedFile?.commitHash === selectedHash && !loading ? selectedFile.file : null;
+  const previewFile = selectedFile?.commitHash === selectedHash ? selectedFile.file : null;
 
   useLayoutEffect(() => {
     if (!previewFile && returnFocus.current) {
@@ -129,28 +133,18 @@ export function PushPreview({
   }, [previewFile]);
 
   useEffect(() => {
+    if (pushing || (blocked && outgoing)) return;
     let cancelled = false;
-    setOutgoing(null);
-    setSelectedHash(null);
-    setSelectedFile(null);
-    setFiles([]);
-    setFilesError("");
-    setError("");
-    if (!upstream) {
-      setLoading(false);
-      return () => { cancelled = true; };
-    }
+    if (!upstream) { setOutgoing(null); setSelectedHash(null); setSelectedFile(null); setFiles([]); setLoading(false); return; }
     setLoading(true);
-    void native.outgoing(workspaceId, path).then(
-      (result) => {
-        if (cancelled) return;
-        setOutgoing(result);
-        setSelectedHash(result.commits[0]?.hash ?? null);
-      },
-      (reason) => { if (!cancelled) setError(String(reason)); },
-    ).finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [workspaceId, path, upstream, refresh]);
+    void native.outgoing(workspaceId, path).then(result => {
+      if (cancelled) return;
+      setOutgoing(result);
+      setSelectedHash(old => result.commits.some(commit=>commit.hash===old) ? old : result.commits[0]?.hash??null);
+      setSelectedFile(old=>old&&result.commits.some(commit=>commit.hash===old.commitHash)?old:null);
+    }, reason => {if(!cancelled)setError(String(reason));}).finally(()=>{if(!cancelled)setLoading(false);});
+    return () => {cancelled=true;};
+  }, [workspaceId,path,upstream,refresh,revision,blocked,pushing]);
 
   useEffect(() => {
     setSelectedFile(null);
@@ -226,7 +220,7 @@ export function PushPreview({
     <div className="flex min-h-0 flex-1 flex-col" data-testid="push-preview">
       <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3">
         {outgoing ? (
-          <div className="inline-flex min-w-0 items-center gap-2 rounded-md border bg-muted/20 px-3 py-2 text-xs">
+          <div dir="ltr" className="inline-flex min-w-0 items-center gap-2 rounded-md border bg-muted/20 px-3 py-2 text-xs">
             <span className="truncate font-medium">{outgoing.sourceBranch}</span>
             <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
             <span dir="ltr" className="truncate font-mono text-muted-foreground">
@@ -244,7 +238,7 @@ export function PushPreview({
             size="sm"
             aria-label={t("Refresh outgoing commits")}
             disabled={blocked || loading || pushing || !upstream}
-            onClick={() => { setNotice(""); setRefresh((value) => value + 1); }}
+            onClick={() => { setError(""); setNotice(""); setSelectedFile(null); setRefresh((value) => value + 1); }}
           >
             <RefreshCw className="size-3.5" />{t("Refresh")}</Button>
           <Button size="sm" disabled={cannotPush} onClick={() => void push()}>
@@ -254,16 +248,16 @@ export function PushPreview({
         </div>
       </div>
 
-      {error && !isSyncError(error) && (isAuthenticationError(error) && outgoing ? <GitAuthentication key={`${workspaceId}-${path}-${error}`} workspaceId={workspaceId} path={path} error={error} expectedHead={outgoing.head} expectedUpstreamHead={outgoing.upstreamHead} blocked={blocked || pushing} onBusyChange={onBusyChange} onRetry={() => void push()} /> : <Alert variant="destructive" className="mx-4 mt-3 w-auto"><AlertDescription>{t(redactGitError(error))}</AlertDescription></Alert>)}
+      {error && !isSyncError(error) && <GitRecovery workspaceId={workspaceId} path={path} error={error} expected={outgoing??undefined} blocked={blocked||pushing} onBusyChange={onBusyChange} onChanged={onPushed} onRetry={()=>{if(isAuthenticationError(error)&&outgoing)void push();else{setError("");setRefresh(n=>n+1);}}} onReviewChanges={onReviewChanges} onReviewOperations={onReviewOperations}/>}
       {notice && <Alert className="mx-4 mt-3 w-auto"><AlertDescription className="whitespace-pre-wrap">{t(notice)}</AlertDescription></Alert>}
-      {(syncNeeded || isSyncError(error) || (behind ?? 0) > 0) && upstream && <GitSync key={`${workspaceId}-${path}`} workspaceId={workspaceId} path={path} error={error} blocked={blocked || pushing} onBusyChange={onBusyChange} onChanged={onPushed} onReady={() => { setSyncNeeded(false); setError(""); setNotice(""); setRefresh(value => value + 1); onPushed(); }} onReviewChanges={onReviewChanges} />}
+      {(syncNeeded || isSyncError(error) || (behind ?? 0) > 0) && upstream && <GitSync key={`${workspaceId}-${path}`} workspaceId={workspaceId} path={path} error={error} blocked={blocked || pushing} onBusyChange={onBusyChange} onChanged={onPushed} onReady={() => { setSyncNeeded(false); setError(""); setNotice(""); setRefresh(value => value + 1); onPushed(); }} onReviewChanges={onReviewChanges} onReviewOperations={onReviewOperations} />}
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <section aria-label={previewFile ? t("Files in selected commit") : t("Outgoing commits")} className={`flex min-h-0 min-w-0 flex-col border-b md:shrink-0 md:border-b-0 md:border-e ${previewFile ? "max-md:max-h-[30%] md:w-[28%]" : "md:w-[44%]"}`}>
           {previewFile ? <>{filesHeading()}{renderFiles()}</> : <>
           <div className="flex shrink-0 items-center justify-between border-b px-3 py-2 text-xs">
             <span className="font-medium">{t("Outgoing commits")}</span>
-            <span className="text-muted-foreground tabular-nums">{loading ? "…" : outgoing?.totalCommits ?? 0}</span>
+            <span className="text-muted-foreground tabular-nums">{loading ? "…" : number(outgoing?.totalCommits ?? 0)}</span>
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-1">
             {loading && <p className="p-4 text-xs text-muted-foreground">{t("Reading commits…")}</p>}
@@ -292,7 +286,7 @@ export function PushPreview({
           {previewFile ? <>
             <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2 text-xs">
               <span dir="ltr" className="min-w-0 flex-1 truncate font-mono" title={previewFile.path}>{previewFile.path}</span>
-              <Button variant="ghost" size="icon-sm" aria-label={t("Back to outgoing commits")} title={t("Back to outgoing commits")} onClick={() => { returnFocus.current = previewFile.path; setSelectedFile(null); }}><X className="size-4" /></Button>
+              <Button variant="ghost" size="sm" aria-label={t("Back to outgoing commits")} title={t("Back to outgoing commits")} onClick={() => { returnFocus.current = previewFile.path; setSelectedFile(null); }}><X className="size-3.5" />{t("Back to outgoing commits")}</Button>
             </div>
             <div className="min-h-0 min-w-0 flex-1">
               {diffError ? <p role="alert" className="px-4 py-3 text-xs text-destructive">{t(diffError)}</p> : !diff ? <p className="px-4 py-3 text-xs text-muted-foreground">{t("Loading diff…")}</p> : !diff.text && !diff.media ? <p className="px-4 py-3 text-xs text-muted-foreground">{t("No text difference in this view.")}</p> : <SideBySideDiff media={diff.media} key={`${selectedHash}-${previewFile.path}`} text={diff.text} staged={false} truncated={diff.truncated} revisions={{ before: diff.beforeRevision?.slice(0, 8) ?? t("Empty tree"), after: diff.afterRevision.slice(0, 8) }} />}

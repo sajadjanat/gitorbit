@@ -7,7 +7,7 @@ import { GitTools } from "./git-tools";
 import { FileGitAction } from "./rollback-files";
 import { ConflictEditor } from "./conflict-editor";
 
-vi.mock("@/lib/native", () => ({native: {tools: vi.fn(), toolAction: vi.fn(), compare: vi.fn(), conflict: vi.fn(),tags:vi.fn()}}));
+vi.mock("@/lib/native", () => ({native: {tools: vi.fn(), toolAction: vi.fn(), compare: vi.fn(), compareDiff:vi.fn(), conflict: vi.fn(),tags:vi.fn()}}));
 const state: GitToolsState = {reviewToken: "reviewed", head: "a".repeat(40), branch: "main", operation: null, changed: 0, conflicts: 0, stashes: [], reflog: [], remotes: ["origin"], refs: [
   {name: "refs/heads/main", hash: "a".repeat(40), kind: "local", current: true, upstream: "refs/remotes/origin/main"},
   {name: "refs/heads/feature", hash: "b".repeat(40), kind: "local", current: false, upstream: ""},
@@ -102,7 +102,24 @@ it("keeps local tag deletion in the Tags tool with an explicit reviewed target",
 });
 
 it("closes a branch comparison without losing the selection or writing to Git",async()=>{
- vi.mocked(native.compare).mockResolvedValue({target:"refs/heads/feature",ahead:2,behind:1,diff:"@@ -1 +1 @@\n-old\n+new",truncated:false});
+ vi.mocked(native.compare).mockResolvedValue({head:"a".repeat(40),target:"b".repeat(40),ahead:2,behind:1,files:[]});
  const user=userEvent.setup();render(<GitTools {...props}/>);await user.click(await screen.findByRole("button",{name:"feature"}));await user.click(screen.getByRole("button",{name:"Compare with current"}));
  await user.click(await screen.findByRole("button",{name:"Close comparison"}));expect(screen.queryByLabelText("Side-by-side diff")).not.toBeInTheDocument();expect(screen.getByRole("button",{name:"feature"})).toHaveAttribute("aria-pressed","true");expect(native.toolAction).not.toHaveBeenCalled();expect(native.compare).toHaveBeenCalledWith("w","/repo","refs/heads/feature");
+});
+
+it("compares each file at immutable commits and preserves branch search on live refresh",async()=>{
+  vi.mocked(native.compare).mockResolvedValue({head:"a".repeat(40),target:"b".repeat(40),ahead:1,behind:2,files:[{path:"one.ts",status:"M",originalPath:null},{path:"two.ts",status:"A",originalPath:null}]});
+  vi.mocked(native.compareDiff).mockImplementation(async(_w,_p,before,after,file)=>({beforeRevision:before,afterRevision:after,truncated:false,text:`@@ -1 +1 @@\n-old ${file}\n+new ${file}`}));
+  const user=userEvent.setup();const view=render(<GitTools {...props} dataRevision="1"/>);
+  await user.click(await screen.findByRole("button",{name:"feature"}));
+  await user.type(screen.getByRole("textbox",{name:"Search branches"}),"feature");
+  await user.click(screen.getByRole("button",{name:"Compare with current"}));
+  await waitFor(()=>expect(native.compareDiff).toHaveBeenCalledWith("w","/repo","a".repeat(40),"b".repeat(40),"one.ts"));
+  await user.click(screen.getByRole("button",{name:/two.ts/}));
+  await waitFor(()=>expect(native.compareDiff).toHaveBeenCalledWith("w","/repo","a".repeat(40),"b".repeat(40),"two.ts"));
+  view.rerender(<GitTools {...props} dataRevision="2"/>);
+  await waitFor(()=>expect(native.tools).toHaveBeenCalledTimes(3));
+  expect(screen.getByRole("textbox",{name:"Search branches"})).toHaveValue("feature");
+  expect(screen.getByRole("button",{name:/two.ts/})).toHaveAttribute("aria-pressed","true");
+  expect(native.toolAction).not.toHaveBeenCalled();
 });

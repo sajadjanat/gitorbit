@@ -725,6 +725,14 @@ async fn repository_compare(
     }).await.map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn repository_compare_diff(state: State<'_, AppState>, workspace_id: String, path: String, before: String, after: String, file: String) -> Result<version_control::CommitDiff, String> {
+    let path = repository_path(&state, &workspace_id, &path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (git, _) = git::find_git().ok_or("Git is not installed.")?;
+        version_control::comparison_diff(&git, &path, &before, &after, &file)
+    }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
 async fn repository_conflict(
     state: State<'_, AppState>, workspace_id: String, path: String, file: String,
 ) -> Result<git_tools::Conflict, String> {
@@ -837,7 +845,7 @@ pub fn run() {
             }
             #[cfg(not(debug_assertions))] let _ = (webview, payload);
         })
-        .invoke_handler(tauri::generate_handler![repository_delete_files_review, repository_delete_files, repository_shelves, repository_shelf_preview, repository_shelf_diff, repository_shelf_action, load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, repository_commit_diff, repository_authentication, sign_in_repository, cancel_git_sign_in, open_git_sign_in_setup, push_repository, repository_sync, repository_changes, repository_diff, repository_action, repository_revision_tree, repository_revision_blob, repository_submodules, repository_update_submodule, repository_tags, repository_review_tag_remote, repository_tag_action, repository_ignore_files_review, repository_ignore_files_apply, repository_ignored_files, repository_export_patch, repository_preview_patch, repository_apply_patch, save_patch_file, setup_repository, repository_interactive_rebase, repository_start_interactive_rebase, repository_stash_preview, repository_stash_diff, repository_stash_selected, repository_stash_branch, repository_history_commit_files, repository_history_commit_diff, repository_commit_options, repository_commit_reviewed, repository_file_history, repository_file_history_diff, repository_file_blame, repository_remotes, repository_remote_action, repository_partial_stage, repository_stage_hunk, repository_tools, repository_tool_action, repository_compare, repository_conflict, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
+        .invoke_handler(tauri::generate_handler![repository_delete_files_review, repository_delete_files, repository_shelves, repository_shelf_preview, repository_shelf_diff, repository_shelf_action, load_workspaces, save_workspaces, scan_workspace, check_environment, install_git, open_git_download, open_repository, repository_history, repository_outgoing, repository_commit_files, repository_commit_diff, repository_authentication, sign_in_repository, cancel_git_sign_in, open_git_sign_in_setup, push_repository, repository_sync, repository_changes, repository_diff, repository_action, repository_revision_tree, repository_revision_blob, repository_submodules, repository_update_submodule, repository_tags, repository_review_tag_remote, repository_tag_action, repository_ignore_files_review, repository_ignore_files_apply, repository_ignored_files, repository_export_patch, repository_preview_patch, repository_apply_patch, save_patch_file, setup_repository, repository_interactive_rebase, repository_start_interactive_rebase, repository_stash_preview, repository_stash_diff, repository_stash_selected, repository_stash_branch, repository_history_commit_files, repository_history_commit_diff, repository_commit_options, repository_commit_reviewed, repository_file_history, repository_file_history_diff, repository_file_blame, repository_remotes, repository_remote_action, repository_partial_stage, repository_stage_hunk, repository_tools, repository_tool_action, repository_compare, repository_compare_diff, repository_conflict, update_connection, save_update_connection, check_app_update, smoke_report, smoke_update])
         .run(context).expect("error while running GitOrbit");
 }
 

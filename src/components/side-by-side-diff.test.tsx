@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { setLanguage, t } from "@/lib/i18n";
 import { expect, it } from "vitest";
-import { SideBySideDiff } from "./side-by-side-diff";
+import { SideBySideDiff, parseDiff } from "./side-by-side-diff";
 it("shows additions and removals in the correct version panes", () => {
   render(<SideBySideDiff staged={false} truncated={false} text={"diff --git a/test b/test\n--- a/test\n+++ b/test\n@@ -5,2 +8,2 @@\n common\n-old value\n+new value\n"} />);
   expect(within(screen.getByLabelText("Index code")).getByText(/old/)).toBeInTheDocument();
@@ -117,4 +117,13 @@ it("supports Shift-wheel on a new file and removes the listener when the preview
   fireEvent(pane, detached);
   expect(detached.defaultPrevented).toBe(false);
   expect(pane.scrollLeft).toBe(50);
+});
+
+it("keeps multi-file headers out of changed code and resets hunk line numbers", () => {
+  const rows = parseDiff("diff --git a/one.txt b/one.txt\n--- a/one.txt\n+++ b/one.txt\n@@ -1 +1 @@\n-old one\n+new one\ndiff --git a/two.txt b/two.txt\n--- a/two.txt\n+++ b/two.txt\n@@ -8 +9 @@\n-old two\n+new two");
+  const changes = rows.filter(row=>row.kind==="change");
+  expect(changes).toEqual([
+    {kind:"change",oldLine:{number:1,text:"old one"},newLine:{number:1,text:"new one"}},
+    {kind:"change",oldLine:{number:8,text:"old two"},newLine:{number:9,text:"new two"}},
+  ]);
 });

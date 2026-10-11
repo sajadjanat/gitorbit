@@ -13,6 +13,7 @@ export function useMonitor(
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [revisions, setRevisions] = useState<Record<string, number>>({});
   const refs = useRef({ workspaces, enabled, live });
   refs.current = { workspaces, enabled, live };
   const queue = useRef(new Map<string, boolean>());
@@ -52,6 +53,7 @@ export function useMonitor(
           )
             return;
           setSnapshots((s) => ({ ...s, [id]: snapshot }));
+          setRevisions((s) => ({ ...s, [id]: (s[id] ?? 0) + 1 }));
           setErrors((s) => ({ ...s, [id]: "" }));
         })
         .catch((error) => {
@@ -131,5 +133,5 @@ export function useMonitor(
       clearInterval(remoteTimer);
     };
   }, [enabled, live, request]);
-  return { snapshots, errors, busy, refresh: request };
+  return { snapshots, revisions, errors, busy, refresh: request };
 }

@@ -136,3 +136,34 @@ it("disables delete for an already missing file and exposes selected deletion un
   await user.click(screen.getByRole("checkbox",{name:"Select unversioned new.ts"}));await user.click(screen.getByRole("button",{name:"More file actions"}));
   expect(screen.getByRole("button",{name:"Delete file"})).toBeEnabled();expect(native.deleteFiles).not.toHaveBeenCalled();
 });
+
+it("restores repository drafts after closing and keeps different repositories separate", async () => {
+  const first = render(<VersionControl {...props}/>);
+  fireEvent.change(screen.getByRole("textbox"),{target:{value:"First repository draft"}});
+  first.unmount();
+  const second=render(<VersionControl {...props} path="/other"/>);
+  expect(screen.getByRole("textbox")).toHaveValue("");
+  fireEvent.change(screen.getByRole("textbox"),{target:{value:"Other draft"}});
+  second.unmount();
+  render(<VersionControl {...props}/>);
+  expect(screen.getByRole("textbox")).toHaveValue("First repository draft");
+  expect(native.commitReviewed).not.toHaveBeenCalled();
+});
+it("refreshes same-branch changes and diff without losing the draft, file selection or scroll", async()=>{
+  const file={path:"live.ts",originalPath:null,status:" M"};
+  vi.mocked(native.changes).mockResolvedValue({...repository,changed:1,unstaged:1,files:[file]});
+  vi.mocked(native.diff).mockResolvedValue({text:"@@ -1 +1 @@\n-old\n+new",truncated:false});
+  const view=render(<VersionControl {...props} revision="1"/>);
+  await screen.findByRole("button",{name:/live.ts/});
+  fireEvent.click(screen.getByRole("button",{name:/live.ts/}));
+  fireEvent.click(screen.getByRole("checkbox",{name:"Select changes live.ts"}));
+  fireEvent.change(screen.getByRole("textbox"),{target:{value:"Keep this draft"}});
+  const pane=await screen.findByLabelText("Index code");
+  fireEvent.scroll(pane,{target:{scrollLeft:120,scrollTop:30}});
+  view.rerender(<VersionControl {...props} revision="2"/>);
+  await waitFor(()=>expect(native.diff).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole("textbox")).toHaveValue("Keep this draft");
+  expect(screen.getByRole("checkbox",{name:"Select changes live.ts"})).toBeChecked();
+  expect(screen.getByLabelText("Index code")).toBe(pane);
+  expect(pane.scrollLeft).toBe(120);
+});

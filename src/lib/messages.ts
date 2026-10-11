@@ -15,8 +15,10 @@ import { shelfOverviewMessages } from "./shelf-overview-messages";
 import { simplifyMessages } from "./simplify-messages";
 import { deleteFilesMessages } from "./delete-files-messages";
 import {filePreviewMessages} from "./file-preview-messages";
+import {workflowMessages} from "./workflow-messages";
 // English source keys provide readable fallback text.
 export const messages: Record<string, {fa: string; ar: string; zh: string}> = {
+  ...workflowMessages,
   ...filePreviewMessages,
   ...gitToolsMessages,
   ...commitOptionsMessages,

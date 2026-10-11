@@ -146,7 +146,7 @@ window.__TAURI_INTERNALS__ = {
   if(command==='load_workspaces') return roots;
   if(command==='scan_workspace') return data.snapshots[args.workspaceId];
   if(command==='repository_history') return data.history;
-  if(command==='repository_compare') return {target:args.target,ahead:2,behind:1,diff:'diff --git a/src/workspace.ts b/src/workspace.ts\\n--- a/src/workspace.ts\\n+++ b/src/workspace.ts\\n@@ -1 +1 @@\\n-refresh(active)\\n+refreshAll(workspaces)\\n',truncated:false};
+  if(command==='repository_compare') return {head:data.history.head,target:data.history.commits[1].hash,ahead:2,behind:1,files:data.commitFiles};
   if(command==='repository_outgoing') return data.outgoing;
   if(command==='repository_commit_options') return {reviewToken:'preview',head:data.history.head,previousMessage:'feat: keep workspaces up to date',canAmend:true,blockedReason:null,staged:1,published:false,signOffIdentity:'Demo Author <demo@example.invalid>',defaultAuthorName:'Demo Author',defaultAuthorEmail:'demo@example.invalid',previousAuthorName:'Demo Author',previousAuthorEmail:'demo@example.invalid',signingEnabled:false,signingKey:null,signingFormat:'openpgp'};
   if(command==='repository_submodules') return {reviewToken:'preview',modules:[{name:'shared',path:'packages/shared',url:'https://github.com/example/shared.git',status:'ready',expectedHead:'ac'.padEnd(40,'0'),head:'ac'.padEnd(40,'0'),dirty:false,blockedReason:null}],warnings:[]};
@@ -178,11 +178,19 @@ window.__TAURI_INTERNALS__ = {
     if(!signedIn) throw new Error("remote: Failed to authenticate user\\nfatal: Authentication failed for 'https://git.example.invalid/demo/repo.git/'");
     return 'Documentation demo completed. No repository was changed.';
   }
+  if(command==='repository_action' && args.action==='pull') {
+    if(authDemo && !signedIn) throw new Error('Authentication failed. Sign in to Git, then retry.');
+    if(syncDemo && syncState.behind && syncState.ahead) throw new Error('Not possible to fast-forward, aborting.');
+    const repo=data.snapshots[args.workspaceId]?.repositories.find(repo=>repo.path===args.path);
+    if(repo?.changed) throw new Error('Skipped: commit or stash local changes before pulling.');
+    if(!repo?.upstream) throw new Error('Skipped: configure an upstream before pulling.');
+    return 'Documentation demo completed. No repository was changed.';
+  }
   if(command==='repository_authentication') return {target:'https://git.example.invalid/demo/repo.git/',host:'https://git.example.invalid',canSignIn:authDemo!=='missing',reason:authDemo==='missing'?'Install and configure Git Credential Manager, then refresh this page.':null};
   if(command==='sign_in_repository') { signedIn=true; return null; }
   if(command==='cancel_git_sign_in' || command==='open_git_sign_in_setup') return null;
   if(command==='repository_commit_files' || command==='repository_history_commit_files') return data.commitFiles;
-  if(['repository_commit_diff','repository_history_commit_diff','repository_file_history_diff','repository_stash_diff','repository_shelf_diff'].includes(command)) {
+  if(['repository_compare_diff','repository_commit_diff','repository_history_commit_diff','repository_file_history_diff','repository_stash_diff','repository_shelf_diff'].includes(command)) {
     if(mediaPreviews[args.file])return {beforeRevision:'b1'.padEnd(40,'0'),afterRevision:'a1'.padEnd(40,'0'),text:'',truncated:false,media:mediaPreviews[args.file]};
     const file = data.commitFiles.find(file => file.path === args.file) || {path:args.file,status:'M'};
     const text = file.status === 'A' ? 'diff --git a/'+args.file+' b/'+args.file+'\\nnew file mode 100644\\n--- /dev/null\\n+++ b/'+args.file+'\\n@@ -0,0 +1,3 @@\\n+export function WorkspaceTabs() {\\n+  return <nav aria-label="Workspaces" />;\\n+}' : file.originalPath ? 'diff --git a/'+file.originalPath+' b/'+file.path+'\\nsimilarity index 100%\\nrename from '+file.originalPath+'\\nrename to '+file.path : 'diff --git a/'+args.file+' b/'+args.file+'\\n--- a/'+args.file+'\\n+++ b/'+args.file+'\\n@@ -1,3 +1,4 @@\\n export function refreshWorkspace() {\\n-  return scan(activeWorkspace);\\n+  return Promise.all(workspaces.map(scan));\\n+  // Keep every workspace up to date.\\n }';

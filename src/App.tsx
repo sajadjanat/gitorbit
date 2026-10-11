@@ -6,6 +6,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  ChevronDown,
   Download,
   FolderGit2,
   FolderOpen,
@@ -75,7 +76,10 @@ import { useMonitor } from "@/lib/use-monitor";
 import { RepositoryHistory } from "@/components/repository-history";
 import { PushPreview } from "@/components/push-preview";
 import { VersionControl } from "@/components/version-control";
-import { BranchManager, GitTools } from "@/components/git-tools";
+import { GitRecovery } from "@/components/git-recovery";
+import { classifyGitError, redactGitError } from "@/lib/git-errors";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { GitTools } from "@/components/git-tools";
 import { AppearanceButton } from "@/components/appearance";
 import { LanguagePicker } from "@/components/language-picker";
 import { AppUpdates } from "@/components/app-updates";
@@ -179,10 +183,18 @@ export default function App() {
   const [pulling, setPulling] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [repositoryBusy, setRepositoryBusy] = useState(false);
-  const [repositoryRevision, setRepositoryRevision] = useState(0);
   const [repositoryTab, setRepositoryTab] = useState("changes");
+  const [visitedTabs, setVisitedTabs] = useState<string[]>(["changes"]);
+  const [toolView, setToolView] = useState("branches");
+  const [recovery, setRecovery] = useState<{workspaceId:string;path:string;error:string}|null>(null);
+  const detailTitle = useRef<HTMLHeadingElement>(null);
+  function changeRepositoryTab(tab: string) {
+    setRepositoryTab(tab); setVisitedTabs(old => old.includes(tab) ? old : [...old, tab]);
+    if (tab === "tools") setToolView("branches");
+  }
+  function openTools(view: string) { changeRepositoryTab("tools"); setToolView(view); }
   const pullGuard = useRef(false);
-  const [pullReport, setPullReport] = useState<{ title: string; total: number; results: { name: string; status: string; message: string }[] } | null>(null);
+  const [pullReport, setPullReport] = useState<{ workspaceId: string; title: string; total: number; results: { path: string; name: string; status: string; message: string }[] } | null>(null);
   const [showPullReport, setShowPullReport] = useState(false);
   const desktop = native.available();
   const monitor = useMonitor(
@@ -197,6 +209,7 @@ export default function App() {
         (r) => r.path === detail.path,
       )
     : undefined;
+  const detailRevision = `${detail ? monitor.revisions[detail.workspaceId] ?? 0 : 0}:${selected?.branch}:${selected?.detached}`;
   const repositories = [...(snapshot?.repositories ?? [])]
     .filter(
       (r) =>
@@ -244,11 +257,16 @@ export default function App() {
   }
 
   function openRepositoryDetails(workspaceId: string, repo: Repository, tab="changes") {
-    setRepositoryTab(tab);
+    setRepositoryTab(tab); setVisitedTabs([tab]); setToolView("branches"); setRecovery(null);
     setDetail({
       workspaceId,
       path: repo.path,
     });
+  }
+  function openNextStep(repo: Repository) {
+    const step = nextStep(repo).label;
+    openRepositoryDetails(active, repo, ["Push","Sync branch","Pull"].includes(step) ? "push" : ["Select branch","Set upstream","Check upstream"].includes(step) ? "tools" : "changes");
+    if (repo.fetchError || repo.error) setRecovery({workspaceId:active,path:repo.path,error:repo.fetchError || repo.error!});
   }
   function repositoryActions(r:Repository):ContextAction[] {
     const locked=pulling||updating||repositoryBusy;
@@ -390,18 +408,31 @@ export default function App() {
     }
   }
 
-  async function pullRepositories(id: string, repos: Repository[], title: string) {
+  async function pullRepositories(id: string, repos: Repository[], title: string, retry = false) {
     if (pullGuard.current || repositoryBusy || updating || !repos.length) return;
     pullGuard.current = true; setPulling(true); setShowPullReport(true);
-    setPullReport({ title, total: repos.length, results: [] });
+    setPullReport(old => retry && old?.workspaceId === id ? {...old,results:old.results.filter(result=>!repos.some(repo=>repo.path===result.path))} : {workspaceId:id,title,total:repos.length,results:[]});
     try {
       for (const repo of repos) {
-        let result: { name: string; status: string; message: string };
-        try { result = { name: repo.name, status: "Updated", message: await native.action(id, repo.path, "pull") }; }
-        catch (error) { const message = String(error); result = { name: repo.name, status: message.startsWith("Skipped:") ? "Skipped" : "Failed", message }; }
+        let result: { path: string; name: string; status: string; message: string };
+        try { result = { path:repo.path, name: repo.name, status: "Updated", message: await native.action(id, repo.path, "pull") }; }
+        catch (error) { const message = String(error); result = { path:repo.path, name: repo.name, status: message.startsWith("Skipped:") ? "Skipped" : "Failed", message }; }
         setPullReport((old) => old ? { ...old, results: [...old.results, result] } : old);
       }
     } finally { setPulling(false); pullGuard.current = false; monitor.refresh(id); }
+  }
+  function resolvePullResult(result: {path:string;message:string}) {
+    if (!pullReport) return;
+    const repo = monitor.snapshots[pullReport.workspaceId]?.repositories.find(r=>r.path===result.path);
+    if (!repo) return;
+    setShowPullReport(false); openRepositoryDetails(pullReport.workspaceId,repo);
+    setRecovery({workspaceId:pullReport.workspaceId,path:result.path,error:result.message});
+  }
+  function retryFailedPulls() {
+    if (!pullReport) return;
+    const failed = new Set(pullReport.results.filter(r=>r.status!=="Updated").map(r=>r.path));
+    const repos = monitor.snapshots[pullReport.workspaceId]?.repositories.filter(r=>failed.has(r.path)) ?? [];
+    void pullRepositories(pullReport.workspaceId,repos,pullReport.title,true);
   }
   return (
     <TooltipProvider delayDuration={300}>
@@ -741,7 +772,7 @@ export default function App() {
                               ))}
                             </TableRow>
                           ))
-                        : repositories.map((r) => <RepositoryOverviewRow key={r.path} repo={r} stale={Boolean(monitor.errors[active])} onOpen={()=>openRepositoryDetails(active,r)} actions={repositoryActions(r)}/>)}
+                        : repositories.map((r) => <RepositoryOverviewRow key={r.path} repo={r} stale={Boolean(monitor.errors[active])} onOpen={()=>openRepositoryDetails(active,r)} onNext={()=>openNextStep(r)} actions={repositoryActions(r)}/>)}
                       {snapshot && !repositories.length && (
                         <TableRow>
                           <TableCell
@@ -793,6 +824,7 @@ export default function App() {
             side={direction === "rtl" ? "right" : "left"}
             style={{ "--sheet-width": `${drawerWidth}vw` } as React.CSSProperties}
             className="flex flex-col gap-0 p-0 overflow-hidden"
+            onOpenAutoFocus={event=>{event.preventDefault();detailTitle.current?.focus();}}
           >
             <div
               role="separator"
@@ -815,23 +847,36 @@ export default function App() {
               <span className="h-12 w-1 rounded-full bg-border transition-colors duration-150 group-hover:bg-primary group-focus-visible:bg-primary" />
             </div>
             <SheetHeader className="px-5 pt-5 pb-3 shrink-0 pe-12">
-              <SheetTitle className="flex items-center gap-2"><FolderGit2 className="size-4" />{selected?.name ?? t("Repository")}</SheetTitle>
+              <SheetTitle ref={detailTitle} tabIndex={-1} className="flex items-center gap-2 outline-none"><FolderGit2 className="size-4" />{selected?.name ?? t("Repository")}</SheetTitle>
               <SheetDescription dir="ltr" className="font-mono text-[11px] truncate" title={selected?.path}>{selected?.path}</SheetDescription>
             </SheetHeader>
             {selected && detail && <>
               <div className="flex flex-wrap items-center gap-3 px-5 pb-3 shrink-0 text-xs">
                 <Status repo={selected} />
-                <BranchManager key={`${detail.workspaceId}:${selected.path}`} workspaceId={detail.workspaceId} path={selected.path} branch={selected.detached ? t("Detached HEAD") : selected.branch} blocked={pulling || updating || repositoryBusy || Boolean(selected.error)} onBusyChange={setRepositoryBusy} onChanged={() => { setRepositoryRevision(n => n + 1); monitor.refresh(detail.workspaceId); }} />
+                <Button size="sm" variant="outline" disabled={pulling||updating||repositoryBusy} onClick={()=>openTools("branches")}><GitBranch className="size-3.5"/><bdi>{selected.detached?t("Detached HEAD"):selected.branch}</bdi></Button>
                 <span className="text-muted-foreground hidden sm:inline">{selected.upstream ?? t("No upstream")}</span>
-                <Button variant="outline" size="sm" className="ms-auto" disabled={pulling} onClick={() => void pullRepositories(detail.workspaceId, [selected], selected.name)}><ArrowDown className="size-3.5" />{t("Pull repository")}</Button>
+                <Button variant="outline" size="sm" className="ms-auto" disabled={pulling||updating||repositoryBusy||!selected.upstream||selected.detached} onClick={() => void pullRepositories(detail.workspaceId, [selected], selected.name)}><ArrowDown className="size-3.5" />{t("Pull repository")}</Button>
                 <Button variant="ghost" size="sm" onClick={() => void openRepository(detail.workspaceId, selected.path)}><FolderOpen className="size-3.5" />{t("Open folder")}</Button>
+                <DropdownMenu dir={direction}><DropdownMenuTrigger asChild><Button variant="ghost" size="sm" disabled={pulling||updating||repositoryBusy}>{t("Repository tools")}<ChevronDown className="size-3.5"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>{t("Saved work")}</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={()=>setShelfRepository({workspaceId:detail.workspaceId,path:selected.path})}>{t("Shelf")}</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={()=>openTools("stash")}>{t("Stashes")}</DropdownMenuItem>
+                  <DropdownMenuSeparator/>{(["tags","remotes","submodules"] as const).map(view=><DropdownMenuItem key={view} onSelect={()=>openTools(view)}>{t({tags:"Tags",remotes:"Remotes",submodules:"Submodules"}[view])}</DropdownMenuItem>)}
+                  <DropdownMenuSeparator/><DropdownMenuItem onSelect={()=>openTools("log")}>{t("Recovery and history")}</DropdownMenuItem>
+                </DropdownMenuContent></DropdownMenu>
               </div>
-              <Tabs key={selected.path} value={repositoryTab} onValueChange={setRepositoryTab} className="flex-1 min-h-0 gap-0">
+              {selected.operation&&repositoryTab!=="tools"&&<Alert className="mx-5 mb-2 w-auto py-2"><AlertTitle>{t("Operation in progress: {operation}",{operation:selected.operation})}</AlertTitle><AlertDescription className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={repositoryBusy||pulling} onClick={()=>changeRepositoryTab("changes")}>{t("Review in Version Control")}</Button><Button size="sm" disabled={repositoryBusy||pulling} onClick={()=>openTools("branches")}>{t("Review repository operations")}</Button></AlertDescription></Alert>}
+              {recovery&&recovery.workspaceId===detail.workspaceId&&recovery.path===selected.path&&<div className="max-h-[38vh] overflow-auto border-b">
+                <GitRecovery workspaceId={detail.workspaceId} path={selected.path} error={recovery.error} purpose="pull" blocked={repositoryBusy||pulling||updating} onBusyChange={setRepositoryBusy} onChanged={()=>monitor.refresh(detail.workspaceId)} onRetry={()=>{setRecovery(null);void pullRepositories(detail.workspaceId,[selected],selected.name,true);}} onReviewChanges={()=>{setRecovery(null);changeRepositoryTab("changes");}} onReviewOperations={()=>{setRecovery(null);openTools("branches");}}/>
+                <Button size="sm" variant="ghost" className="mx-4 mb-2" disabled={repositoryBusy||pulling} onClick={()=>setRecovery(null)}>{t("Close")}</Button>
+              </div>}
+              <Tabs key={`${detail.workspaceId}:${selected.path}`} value={repositoryTab} onValueChange={changeRepositoryTab} className="flex-1 min-h-0 gap-0">
                 <TabsList className="mx-5 mb-2 shrink-0 max-w-[calc(100%-2.5rem)] w-fit h-auto! min-h-8 grid grid-cols-2 gap-1 sm:inline-flex sm:gap-0"><TabsTrigger value="changes" className="h-7!">{t("Version Control")}<span className="ms-1 text-muted-foreground">{number(selected.changed)}</span></TabsTrigger><TabsTrigger value="push" className="h-7!">{t("Push")}<span className="ms-1 text-muted-foreground">{selected.ahead === null ? "?" : number(selected.ahead)}</span></TabsTrigger><TabsTrigger value="tools" className="h-7!">{t("Branches")}</TabsTrigger><TabsTrigger value="graph" className="h-7!">{t("Git graph")}</TabsTrigger></TabsList>
-                <TabsContent value="changes" className="m-0 flex flex-1 min-h-0 border-t"><VersionControl revision={`${selected.branch}:${selected.detached}:${repositoryRevision}`} workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
-                <TabsContent value="push" className="m-0 flex flex-1 min-h-0 border-t"><PushPreview key={`${selected.branch}:${selected.detached}:${repositoryRevision}`} onReviewChanges={() => setRepositoryTab("changes")} workspaceId={detail.workspaceId} path={selected.path} upstream={selected.upstream} behind={selected.behind} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onPushed={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
-                <TabsContent value="graph" className="m-0 flex flex-1 min-h-0 border-t"><RepositoryHistory key={`${selected.branch}:${selected.detached}:${repositoryRevision}`} workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
-                <TabsContent value="tools" className="m-0 flex flex-1 min-h-0 border-t"><GitTools key={`${selected.branch}:${selected.detached}:${repositoryRevision}`} workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>
+                {visitedTabs.includes("changes")&&<TabsContent forceMount value="changes" className="m-0 flex flex-1 min-h-0 border-t data-[state=inactive]:hidden!"><VersionControl hideSavedWork key={`${detail.workspaceId}:${selected.path}`} revision={detailRevision} workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} onReviewPush={()=>changeRepositoryTab("push")} onReviewOperations={()=>openTools("branches")} /></TabsContent>}
+                {visitedTabs.includes("push")&&<TabsContent forceMount value="push" className="m-0 flex flex-1 min-h-0 border-t data-[state=inactive]:hidden!"><PushPreview revision={detailRevision} onReviewChanges={() => changeRepositoryTab("changes")} onReviewOperations={()=>openTools("branches")} workspaceId={detail.workspaceId} path={selected.path} upstream={selected.upstream} behind={selected.behind} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onPushed={() => monitor.refresh(detail.workspaceId)} /></TabsContent>}
+                {visitedTabs.includes("graph")&&<TabsContent forceMount value="graph" className="m-0 flex flex-1 min-h-0 border-t data-[state=inactive]:hidden!"><RepositoryHistory revision={detailRevision} workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>}
+                {visitedTabs.includes("tools")&&<TabsContent forceMount value="tools" className="m-0 flex flex-1 min-h-0 border-t data-[state=inactive]:hidden!"><GitTools dataRevision={detailRevision} requestedView={toolView} hideToolsMenu onReviewChanges={()=>changeRepositoryTab("changes")} workspaceId={detail.workspaceId} path={selected.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(detail.workspaceId)} /></TabsContent>}
+
               </Tabs>
             </>}
           </SheetContent>
@@ -842,9 +887,10 @@ export default function App() {
             {pullReport && <>
               <p className="text-xs text-muted-foreground flex gap-2 items-center">{pulling && <LoaderCircle className="size-3 animate-spin" />}{t("{done}/{total} processed · {updated} updated · {skipped} skipped · {failed} failed", {done: pullReport.results.length, total: pullReport.total, updated: pullReport.results.filter(r => r.status === "Updated").length, skipped: pullReport.results.filter(r => r.status === "Skipped").length, failed: pullReport.results.filter(r => r.status === "Failed").length})}</p>
               <div className="overflow-auto min-h-0 rounded-md border divide-y">
-                {pullReport.results.map((result, i) => <div key={i} className="p-3 text-xs"><div className="flex justify-between gap-3"><bdi className="font-medium">{result.name}</bdi><span className={result.status === "Updated" ? "text-emerald-500" : result.status === "Skipped" ? "text-amber-500" : "text-destructive"}>{t(result.status)}</span></div><p dir="auto" className="text-muted-foreground mt-1 whitespace-pre-wrap break-words">{t(result.message)}</p></div>)}
+                {pullReport.results.map((result, i) => <div key={i} className="p-3 text-xs"><div className="flex justify-between gap-3"><bdi className="font-medium">{result.name}</bdi><span className={result.status === "Updated" ? "text-emerald-500" : result.status === "Skipped" ? "text-amber-500" : "text-destructive"}>{t(result.status)}</span></div><p dir="auto" className="text-muted-foreground mt-1 whitespace-pre-wrap break-words">{t(redactGitError(result.message))}</p>{result.status!=="Updated"&&<Button size="sm" variant="outline" className="mt-2" disabled={pulling} onClick={()=>resolvePullResult(result)}>{t(classifyGitError(result.message)==="authentication"?"Sign in to Git":classifyGitError(result.message)==="sync"?"Review incoming changes":classifyGitError(result.message)==="changes"?"Review local changes":"Resolve issue")}</Button>}</div>)}
                 {!pullReport.results.length && <p className="p-4 text-xs text-muted-foreground">{t("Updating repositories…")}</p>}
               </div>
+              {!pulling&&pullReport.results.some(r=>r.status!=="Updated")&&<Button variant="outline" size="sm" onClick={retryFailedPulls}>{t("Retry unfinished repositories")}</Button>}
             </>}
           </DialogContent>
         </Dialog>

@@ -265,14 +265,14 @@ pub fn execute(git: &Path, repo: &Path, r: &Request) -> Result<String, String> {
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Comparison { pub target: String, pub ahead: usize, pub behind: usize, pub diff: String, pub truncated: bool }
+pub struct Comparison { pub head: String, pub target: String, pub ahead: usize, pub behind: usize, pub files: Vec<version_control::CommitFile> }
 pub fn compare(git: &Path, repo: &Path, target: &str) -> Result<Comparison, String> {
     let target = commit(git, repo, target)?;
-    let counts = text(git, repo, &["rev-list", "--left-right", "--count", &format!("HEAD...{target}")])?;
+    let head = commit(git, repo, "HEAD")?;
+    let counts = text(git, repo, &["rev-list", "--left-right", "--count", &format!("{head}...{target}")])?;
     let p: Vec<_> = counts.split_whitespace().collect();
-    let bytes = run(git, repo, &["diff", "--no-ext-diff", "--no-textconv", "--no-color", &format!("HEAD..{target}"), "--"])?;
-    let truncated = bytes.len() > 1_000_000;
-    Ok(Comparison { target, ahead: p.first().and_then(|s| s.parse().ok()).unwrap_or(0), behind: p.get(1).and_then(|s| s.parse().ok()).unwrap_or(0), diff: String::from_utf8_lossy(&bytes[..bytes.len().min(1_000_000)]).into_owned(), truncated })
+    let files = version_control::comparison_files(git, repo, &head, &target)?;
+    Ok(Comparison { head, target, ahead: p.first().and_then(|s| s.parse().ok()).unwrap_or(0), behind: p.get(1).and_then(|s| s.parse().ok()).unwrap_or(0), files })
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

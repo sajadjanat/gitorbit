@@ -128,8 +128,8 @@ describe("GitOrbit", () => {
     vi.mocked(native.changes).mockImplementation(() => new Promise(resolve => { finishReload = resolve; }));
     await user.click(within(form).getByRole("button", {name: "Create branch"}));
     await waitFor(() => expect(native.toolAction).toHaveBeenCalledWith("a", staged.path, expect.objectContaining({action: "create", name: "feature/new", reviewToken: "reviewed"})));
-    await waitFor(() => expect(native.changes).toHaveBeenCalledTimes(2));
-    await user.click(within(screen.getByRole("dialog", {name: "Git branches and operations"})).getByRole("button", {name: "Close"}));
+    await waitFor(() => expect(vi.mocked(native.changes).mock.calls.length).toBeGreaterThanOrEqual(2));
+    await user.click(screen.getByRole("tab",{name:/Version Control/}));
     expect(screen.getByRole("button", {name: "Commit and Push…"})).toBeDisabled();
     await act(async () => finishReload({...staged, branch: "feature/new", upstream: null}));
     await waitFor(() => expect(screen.getByRole("button", {name: "Commit"})).toBeEnabled());
@@ -326,4 +326,31 @@ describe("GitOrbit", () => {
     await user.click(screen.getByRole("button", { name: "Commit" }));
     await waitFor(() => expect(native.commitReviewed).toHaveBeenCalledWith("a", "C:/projects/api", {reviewToken:"reviewed", message:"Update server", amend:false, signOff:false}));
   });
+});
+
+it("retains the commit draft across tabs and closing the repository panel",async()=>{
+ const user=userEvent.setup();render(<App/>);await user.click(await screen.findByRole("button",{name:"api"}));
+ await user.type(screen.getByLabelText("Commit message"),"Persistent draft");
+ await user.click(screen.getByRole("tab",{name:"Branches"}));await screen.findByRole("button",{name:"Create branch"});
+ await user.click(screen.getByRole("tab",{name:/Version Control/}));expect(screen.getByLabelText("Commit message")).toHaveValue("Persistent draft");
+ await user.click(within(screen.getByRole("dialog")).getByRole("button",{name:"Close"}));
+ await user.click(screen.getByRole("button",{name:"landing"}));expect(screen.getByLabelText("Commit message")).toHaveValue("");
+ await user.click(within(screen.getByRole("dialog")).getByRole("button",{name:"Close"}));
+ await user.click(screen.getByRole("button",{name:"api"}));expect(screen.getByLabelText("Commit message")).toHaveValue("Persistent draft");
+ expect(native.commitReviewed).not.toHaveBeenCalled();
+});
+it("keeps successful pull results and retries only unfinished repositories",async()=>{
+ vi.mocked(native.action).mockImplementation(async(_id,path)=>{if(path.endsWith("api"))throw "Skipped: commit or stash local changes before pulling.";return "Landing updated.";});
+ const user=userEvent.setup();render(<App/>);await screen.findByRole("button",{name:"api"});await user.click(screen.getByRole("button",{name:"Pull all"}));
+ await screen.findByText("Landing updated.");vi.mocked(native.action).mockResolvedValue("API updated.");
+ await user.click(screen.getByRole("button",{name:"Retry unfinished repositories"}));await screen.findByText("API updated.");
+ expect(screen.getByText("Landing updated.")).toBeInTheDocument();
+ expect(vi.mocked(native.action).mock.calls.filter(call=>call[1].endsWith("landing"))).toHaveLength(1);
+ expect(vi.mocked(native.action).mock.calls.filter(call=>call[1].endsWith("api"))).toHaveLength(2);
+});
+it("routes dirty pull failures into Version Control without repeating Git writes",async()=>{
+ vi.mocked(native.action).mockRejectedValue("Skipped: commit or stash local changes before pulling.");
+ const user=userEvent.setup();render(<App/>);await user.click(await screen.findByRole("button",{name:"api"}));await user.click(screen.getByRole("button",{name:"Pull repository"}));
+ await user.click(await screen.findByRole("button",{name:"Review local changes"}));await user.click(screen.getByRole("button",{name:"Review in Version Control"}));
+ expect(screen.getByRole("tab",{name:/Version Control/})).toHaveAttribute("aria-selected","true");expect(native.action).toHaveBeenCalledTimes(1);
 });
