@@ -6,6 +6,8 @@ Follow-up: [2026-10-11 product and Git workflow audit](audits/2026-10-11-product
 
 Delivery follow-up: [workflow reliability and simplification](audits/2026-10-11-workflow-fixes.md) records the four corrections, navigation changes, verification and native GUI testing limits.
 
+Current investigation: [2026-10-17 next-stage review](audits/2026-10-17-next-stage.md) verifies the 0.7.2 baseline, examines five more shipped classes and three supporting classes, and prioritizes resource-aware reads, conflict/diff workflows, contextual identity/history, provider integration and worktrees. Earlier gaps and verification records below remain historical.
+
 ## Evidence and boundaries
 
 The installed reference was PhpStorm **2025.3**, specifically `plugins/vcs-git/lib/vcs-git.jar`. Its `META-INF/plugin.xml` declares the `Git4Idea` plugin version **253.28294.345**.
