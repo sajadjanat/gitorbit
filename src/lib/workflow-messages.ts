@@ -1,4 +1,11 @@
 export const workflowMessages: Record<string,{fa:string;ar:string;zh:string}> = {
+  "Workspaces": {fa:"ورک‌اسپیس‌ها",ar:"مساحات العمل",zh:"工作区"},
+  "Workspace toolbar": {fa:"ابزارهای ورک‌اسپیس",ar:"أدوات مساحة العمل",zh:"工作区工具栏"},
+  "Fetch settings": {fa:"تنظیمات فچ",ar:"إعدادات الجلب",zh:"获取设置"},
+  "Auto": {fa:"خودکار",ar:"تلقائي",zh:"自动"},
+  "Auto fetch every 60s": {fa:"فچ خودکار هر ۶۰ ثانیه",ar:"جلب تلقائي كل ٦٠ ثانية",zh:"每 60 秒自动获取"},
+  "Drag tabs to reorder, or use Alt+Shift+Arrow keys.": {fa:"برای جابه‌جایی، تب‌ها را بکشید یا از کلیدهای Alt+Shift به‌همراه جهت چپ و راست استفاده کنید.",ar:"اسحب علامات التبويب لترتيبها، أو استخدم Alt+Shift مع مفاتيح الأسهم.",zh:"拖动标签页以调整顺序，或使用 Alt+Shift+方向键。"},
+  "Moved {name} to position {position} of {total}": {fa:"{name} به جایگاه {position} از {total} منتقل شد",ar:"تم نقل {name} إلى الموضع {position} من {total}",zh:"已将 {name} 移至第 {position} 位，共 {total} 个"},
   "Sign-in completed. Retry the update.": {fa:"ورود انجام شد. دوباره پول بگیرید.",ar:"تم تسجيل الدخول. أعد محاولة التحديث.",zh:"登录已完成。请重试更新。"},
   "Comparing committed snapshots; local edits are excluded.": {fa:"مقایسهٔ نسخه‌های کامیت‌شده؛ ویرایش‌های محلی در این نما نیستند.",ar:"مقارنة النسخ الملتزم بها؛ التعديلات المحلية غير مشمولة.",zh:"比较已提交的快照，不包含本地编辑。"},
   "Review local changes": {fa:"بررسی تغییرات محلی",ar:"مراجعة التغييرات المحلية",zh:"查看本地更改"},

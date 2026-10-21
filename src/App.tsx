@@ -25,6 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RepositorySetup } from "@/components/repository-setup";
 import { RepositoryOverviewRow } from "@/components/repository-overview-row";
+import { WorkspaceTabs } from "@/components/workspace-tabs";
 import { type ContextAction } from "@/components/context-actions";
 import { Shelves } from "@/components/shelves";
 import {
@@ -78,7 +79,7 @@ import { PushPreview } from "@/components/push-preview";
 import { VersionControl } from "@/components/version-control";
 import { GitRecovery } from "@/components/git-recovery";
 import { classifyGitError, redactGitError } from "@/lib/git-errors";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { GitTools } from "@/components/git-tools";
 import { AppearanceButton } from "@/components/appearance";
 import { LanguagePicker } from "@/components/language-picker";
@@ -585,40 +586,8 @@ export default function App() {
             }}
             className="gap-0 flex-1"
           >
-            <div className="border-b overflow-x-auto overflow-y-hidden px-6">
-              <TabsList variant="line" className="h-12 gap-1 justify-start">
-                {workspaces.map((w) => (
-                  <div key={w.id} className="flex items-center h-full shrink-0">
-                    <TabsTrigger
-                      value={w.id}
-                      className="h-full rounded-none px-3 gap-2"
-                    >
-                      <FolderOpen className="size-3.5" />
-                      {w.name}
-                      {Boolean(
-                        monitor.snapshots[w.id]?.repositories.filter(attention)
-                          .length,
-                      ) && (
-                        <span title={t("Repositories needing attention")} className="rounded bg-amber-400/10 px-1.5 py-0.5 text-[10px] text-amber-400 tabular-nums">
-                          {
-                            number(monitor.snapshots[w.id].repositories.filter(
-                              attention,
-                            ).length)
-                          }
-                        </span>
-                      )}
-                    </TabsTrigger>
-                    <IconButton
-                      label={t("Close {name}", {name: w.name})}
-                      onClick={() => void closeWorkspace(w.id)}
-                      disabled={saving || pulling}
-                    >
-                      <X className="size-3" />
-                    </IconButton>
-                  </div>
-                ))}
-              </TabsList>
-            </div>
+            <WorkspaceTabs workspaces={workspaces} counts={Object.fromEntries(workspaces.map(w => [w.id, monitor.snapshots[w.id]?.repositories.filter(attention).length ?? 0]))}
+              disabled={saving || pulling || updating || repositoryBusy} onClose={id => void closeWorkspace(id)} onReorder={save}/>
             {workspace && (
               <TabsContent value={active} className="m-0 px-4 sm:px-6 pt-5 pb-4">
                 <div className="flex flex-wrap gap-3 items-start justify-between mb-4">
@@ -655,74 +624,32 @@ export default function App() {
                       {workspace.path}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <RepositorySetup workspaceId={workspace.id} workspacePath={workspace.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(workspace.id)} />
-                    <IconButton
-                      label={t("Refresh status")}
-                      onClick={() => monitor.refresh(active)}
-                      disabled={monitor.busy[active]}
-                    >
-                      <RefreshCw
-                        className={`size-4 ${monitor.busy[active] ? "animate-spin" : ""}`}
-                      />
-                    </IconButton>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={monitor.busy[active] || pulling}
-                      onClick={() => monitor.refresh(active, true)}
-                    >
-                      <ArrowDown className="size-4" />
-                      {t("Fetch remotes")}</Button>
-                    <Button variant="outline" size="sm" disabled={pulling || updating || !snapshot?.repositories.length} onClick={() => void pullRepositories(active, snapshot?.repositories ?? [], workspace.name)}>
-                      <ArrowDown className="size-4" />{pulling ? t("Pulling…") : t("Pull all")}
-                    </Button>
+                  <RepositorySetup workspaceId={workspace.id} workspacePath={workspace.path} blocked={pulling || updating || repositoryBusy} onBusyChange={setRepositoryBusy} onChanged={() => monitor.refresh(workspace.id)} />
+                </div>
+                <div role="group" aria-label={t("Workspace toolbar")} className="flex flex-wrap items-center gap-2 mb-3">
+                  <div className="relative min-w-40 flex-1 sm:flex-none sm:w-56">
+                    <Search className="pointer-events-none absolute start-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                    <Input aria-label={t("Search repositories")} placeholder={t("Find a repository…")} value={search} onChange={e => setSearch(e.target.value)} className="ps-8 h-8 w-full text-xs" />
+                  </div>
+                  <Select value={filter} onValueChange={setFilter}>
+                    <SelectTrigger aria-label={t("Repository filter")} className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="all">{t("All repositories")}</SelectItem><SelectItem value="attention">{t("Needs attention")}</SelectItem></SelectContent>
+                  </Select>
+                  {snapshot && (search || filter !== "all") && <span className="text-xs text-muted-foreground tabular-nums">{t("Showing {shown} of {total}", {shown:repositories.length,total:snapshot.repositories.length})}</span>}
+                  <div className="flex flex-wrap items-center gap-1.5 ms-auto">
+                    <IconButton label={t("Refresh status")} onClick={() => monitor.refresh(active)} disabled={monitor.busy[active]}><RefreshCw className={`size-4 ${monitor.busy[active] ? "animate-spin" : ""}`}/></IconButton>
+                    <div className="inline-flex items-center rounded-md border">
+                      <Button variant="ghost" size="sm" className="rounded-e-none" disabled={monitor.busy[active] || pulling || updating} onClick={() => monitor.refresh(active, true)}><ArrowDown className="size-3.5"/>{t("Fetch remotes")}{workspace.autoFetch && <span className="text-[10px] text-muted-foreground">{t("Auto")}</span>}</Button>
+                      <DropdownMenu dir={direction}>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" className="rounded-s-none border-s" aria-label={t("Fetch settings")}><ChevronDown className="size-3.5"/></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuCheckboxItem checked={workspace.autoFetch} disabled={saving} onCheckedChange={value => void save(workspaces.map(w => w.id === active ? {...w,autoFetch:value} : w))}>{t("Auto fetch every 60s")}</DropdownMenuCheckboxItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <Button variant="outline" size="sm" disabled={pulling || updating || !snapshot?.repositories.length} onClick={() => void pullRepositories(active, snapshot?.repositories ?? [], workspace.name)}><ArrowDown className="size-3.5"/>{pulling ? t("Pulling…") : t("Pull all")}</Button>
                     {pullReport && <Button variant="ghost" size="sm" onClick={() => setShowPullReport(true)}>{t("Pull results")}</Button>}
                   </div>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                  <div className="flex flex-wrap gap-2">
-                    <div className="relative">
-                      <Search className="absolute start-2.5 top-2.5 size-3.5 text-muted-foreground" />
-                      <Input
-                        aria-label={t("Search repositories")}
-                        placeholder={t("Find a repository…")}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="ps-8 h-8 w-52 text-xs"
-                      />
-                    </div>
-                    <Select value={filter} onValueChange={setFilter}>
-                      <SelectTrigger
-                        aria-label={t("Repository filter")}
-                        className="h-8 w-40 text-xs"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">{t("All repositories")}</SelectItem>
-                        <SelectItem value="attention">
-                          {t("Needs attention")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <span className="text-xs text-muted-foreground">{snapshot&&t("Showing {shown} of {total}",{shown:repositories.length,total:snapshot.repositories.length})}</span>
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                    {t("Auto fetch")}{" "}
-                    <span className="text-muted-foreground/60">{t("every 60s")}</span>
-                    <Switch
-                      aria-label={t("Auto fetch remotes")}
-                      checked={workspace.autoFetch}
-                      disabled={saving}
-                      onCheckedChange={(value) =>
-                        void save(
-                          workspaces.map((w) =>
-                            w.id === active ? { ...w, autoFetch: value } : w,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
                 </div>
                 {monitor.errors[active] && (
                   <Alert variant="destructive" className="mb-4">

@@ -111,6 +111,28 @@ beforeEach(() => {
   vi.mocked(native.tools).mockResolvedValue({reviewToken: "reviewed", head: "abcdef123456", branch: "main", operation: null, changed: 1, conflicts: 0, refs: [], stashes: [], reflog: [], remotes: ["origin"]});
 });
 describe("GitOrbit", () => {
+  it("persists workspace order and restores it after reopening the app", async () => {
+    const view=render(<App/>);
+    const target=await screen.findByRole("tab",{name:/telefonchy/});
+    fireEvent.keyDown(target,{key:"ArrowLeft",altKey:true,shiftKey:true});
+    await waitFor(()=>expect(native.save).toHaveBeenCalledWith([roots[1],roots[0]]));
+    await screen.findByText("Moved telefonchy to position 1 of 2");
+    expect(screen.getByRole("tab",{name:/sepehra/})).toHaveAttribute("aria-selected","true");
+    view.unmount();vi.mocked(native.load).mockResolvedValue([roots[1],roots[0]]);
+    render(<App/>);
+    await screen.findByRole("tab",{name:/telefonchy/});
+    expect(screen.getAllByRole("tab").map(tab=>tab.textContent)).toEqual([expect.stringContaining("telefonchy"),expect.stringContaining("sepehra")]);
+  });
+  it("keeps auto fetch in the fetch menu and saves it for the active workspace", async () => {
+    const user=userEvent.setup();render(<App/>);
+    await screen.findByRole("button",{name:"api"});
+    expect(screen.queryByRole("switch",{name:"Auto fetch remotes"})).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button",{name:"Fetch settings"}));
+    await user.click(screen.getByRole("menuitemcheckbox",{name:"Auto fetch every 60s"}));
+    await waitFor(()=>expect(native.save).toHaveBeenCalledWith([{...roots[0],autoFetch:true},roots[1]]));
+    expect(await screen.findByRole("button",{name:/Fetch remotes.*Auto/})).toBeInTheDocument();
+    expect(native.action).not.toHaveBeenCalled();
+  });
   it("reloads branch details after creation without losing the commit draft or using the old upstream", async () => {
     const user = userEvent.setup();
     const staged = repo("api", {changed: 1, staged: 1, files: [{path: "src/server.ts", originalPath: null, status: "M "}]});
