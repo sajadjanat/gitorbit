@@ -159,6 +159,8 @@ it("refreshes same-branch changes and diff without losing the draft, file select
   fireEvent.click(screen.getByRole("checkbox",{name:"Select changes live.ts"}));
   fireEvent.change(screen.getByRole("textbox"),{target:{value:"Keep this draft"}});
   const pane=await screen.findByLabelText("Index code");
+  // The pane exists before the initial diff arrives and resets its scroll.
+  await waitFor(()=>expect(pane).toHaveTextContent("old"));
   fireEvent.scroll(pane,{target:{scrollLeft:120,scrollTop:30}});
   view.rerender(<VersionControl {...props} revision="2"/>);
   await waitFor(()=>expect(native.diff).toHaveBeenCalledTimes(2));
